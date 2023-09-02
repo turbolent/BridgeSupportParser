@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
+<signatures version="1.0">
+    <struct name='Point' type='{Point=&quot;x&quot;f&quot;y&quot;f}'>
+        <field name='x'/>
+        <field name='y'/>
+    </struct>
+</signatures>

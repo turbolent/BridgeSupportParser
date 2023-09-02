@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
+<signatures version="1.0">
+    <class name='Foo'>
+        <method selector='initWithBar:'>
+            <retval type='i' />
+            <arg name='bar' index='0' type='I' />
+        </method>
+        <method selector='fooWithBar:' class_method='true'>
+            <retval type='i' />
+            <arg name='bar' index='0' type='I' />
+        </method>
+    </class>
+</signatures>

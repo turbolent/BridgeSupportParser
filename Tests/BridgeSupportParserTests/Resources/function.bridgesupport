@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
+<signatures version="1.0">
+    <function name='foo'>
+        <retval type='i' />
+        <arg name='bar' index='0' type='I' />
+    </function>
+    <function name='baz'>
+        <arg name='blub' index='0' type='i' />
+        <retval type='I' />
+    </function>
+</signatures>
