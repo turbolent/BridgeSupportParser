@@ -285,10 +285,13 @@ class BridgeSupportParserTests: XCTestCase {
                 definitions: [
                     .Struct(Struct(
                         name: "Point",
-                        fields: [
-                            Field(name: "x", type: .Float),
-                            Field(name: "y", type: .Float),
-                        ]
+                        type: StructType(
+                            name: "_Point",
+                            fields: [
+                                Field(name: "x", type: .Float),
+                                Field(name: "y", type: .Float),
+                            ]
+                        )
                     ))
                 ]
             )
@@ -307,7 +310,7 @@ class BridgeSupportParserTests: XCTestCase {
                 definitions: [
                     .CoreFoundationType(CoreFoundationType(
                         name: "FooRef",
-                        type32: .Pointer(.Struct(name: "Foo", fields: [])),
+                        type32: .Pointer(.Struct(StructType(name: "Foo", fields: []))),
                         type64: nil
                     ))
                 ]
@@ -427,35 +430,35 @@ class BridgeSupportParserTests: XCTestCase {
 
     public func testTypeArraySizeAndElementAndEnd() throws {
         let type = try Type(encoded: "[1i]")
-        XCTAssertEqual(type, .Array(size: 1, .Int))
+        XCTAssertEqual(type, .Array(ArrayType(size: 1, type: .Int)))
     }
 
     public func testTypeStructNoSeparator() throws {
         let type = try Type(encoded: "{}")
-        XCTAssertEqual(type, .Struct(name: "", fields: []))
+        XCTAssertEqual(type, .Struct(StructType(name: "", fields: [])))
     }
 
     public func testTypeStructOnlySeparator() throws {
         let type = try Type(encoded: "{=}")
-        XCTAssertEqual(type, .Struct(name: "", fields: []))
+        XCTAssertEqual(type, .Struct(StructType(name: "", fields: [])))
     }
 
     public func testTypeStructOnlyName() throws {
         let type = try Type(encoded: "{Foo}")
-        XCTAssertEqual(type, .Struct(name: "Foo", fields: []))
+        XCTAssertEqual(type, .Struct(StructType(name: "Foo", fields: [])))
     }
 
     public func testTypeStructNameAndFields() throws {
         let type = try Type(encoded: "{Foo=iv}")
         XCTAssertEqual(
             type,
-            .Struct(
+            .Struct(StructType(
                 name: "Foo",
                 fields: [
                     Field(name: "", type: .Int),
                     Field(name: "", type: .Void)
                 ]
-            )
+            ))
         )
     }
 
@@ -463,37 +466,37 @@ class BridgeSupportParserTests: XCTestCase {
         let type = try Type(encoded: "{Foo=\"first\"i\"second\"v}")
         XCTAssertEqual(
             type,
-            .Struct(
+            .Struct(StructType(
                 name: "Foo",
                 fields: [
                     Field(name: "first", type: .Int),
                     Field(name: "second", type: .Void)
                 ]
-            )
+            ))
         )
     }
 
     public func testTypeUnionOnlySeparator() throws {
         let type = try Type(encoded: "(=)")
-        XCTAssertEqual(type, .Union(name: "", fields: []))
+        XCTAssertEqual(type, .Union(UnionType(name: "", fields: [])))
     }
 
     public func testTypeUnionOnlyName() throws {
         let type = try Type(encoded: "(Foo)")
-        XCTAssertEqual(type, .Union(name: "Foo", fields: []))
+        XCTAssertEqual(type, .Union(UnionType(name: "Foo", fields: [])))
     }
 
     public func testTypeUnionNameAndFields() throws {
         let type = try Type(encoded: "(Foo=iv)")
         XCTAssertEqual(
             type,
-            .Union(
+            .Union(UnionType(
                 name: "Foo",
                 fields: [
                     Field(name: "", type: .Int),
                     Field(name: "", type: .Void)
                 ]
-            )
+            ))
         )
     }
 
@@ -501,13 +504,13 @@ class BridgeSupportParserTests: XCTestCase {
         let type = try Type(encoded: "(Foo=\"first\"i\"second\"v)")
         XCTAssertEqual(
             type,
-            .Union(
+            .Union(UnionType(
                 name: "Foo",
                 fields: [
                     Field(name: "first", type: .Int),
                     Field(name: "second", type: .Void)
                 ]
-            )
+            ))
         )
     }
 }

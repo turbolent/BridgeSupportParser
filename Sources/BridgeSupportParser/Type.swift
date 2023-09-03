@@ -13,6 +13,21 @@ public struct FunctionType: Equatable {
     }
 }
 
+public struct ArrayType: Equatable {
+    public let size: Int
+    public let type: Type
+}
+
+public struct StructType: Equatable {
+    public let name: String
+    public let fields: [Field]
+}
+
+public struct UnionType: Equatable {
+    public let name: String
+    public let fields: [Field]
+}
+
 // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
 public indirect enum Type: Equatable {
 
@@ -47,9 +62,9 @@ public indirect enum Type: Equatable {
     case ID
     case Class
     case Selector
-    case Array(size: Swift.Int, Type)
-    case Struct(name: String, fields: [Field])
-    case Union(name: String, fields: [Field])
+    case Array(ArrayType)
+    case Struct(StructType)
+    case Union(UnionType)
     case Bitfield(size: Swift.Int)
     case Pointer(Type)
     case Unknown
@@ -233,27 +248,27 @@ public indirect enum Type: Equatable {
                 }
                 encoded.removeFirst()
 
-                return .Array(size: size, element)
+                return .Array(ArrayType(size: size, type: element))
 
              case "{":
                 let (name, fields) = try decodeNameAndFields(
                     encoded: &encoded,
                     expectedEnd: "}"
                 )
-                return .Struct(
+                return .Struct(StructType(
                     name: name,
                     fields: fields
-                )
+                ))
 
             case "(":
                 let (name, fields) = try decodeNameAndFields(
                     encoded: &encoded,
                     expectedEnd: ")"
                 )
-                return .Union(
+                return .Union(UnionType(
                     name: name,
                     fields: fields
-                )
+                ))
 
             case "b":
                 encoded.removeFirst()

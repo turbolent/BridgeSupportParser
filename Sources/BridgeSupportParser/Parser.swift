@@ -14,7 +14,7 @@ public struct Method: Equatable {
 
 public struct Struct: Equatable {
     public let name: String
-    public let fields: [Field]
+    public let type: StructType
 }
 
 public struct Field: Equatable {
@@ -621,10 +621,13 @@ public class Parser: XMLParserDelegate {
         guard let encodedType = attributes["type"] else {
             fatalError("missing type in struct declaration")
         }
-        guard case let .Struct(name: _, fields: fields) = try! Type(encoded: encodedType) else {
+        guard case let .Struct(structType) = try! Type(encoded: encodedType) else {
             fatalError("non-struct type for struct declaration: \(encodedType)")
         }
-        return Struct(name: name, fields: fields)
+        return Struct(
+            name: name,
+            type: structType
+        )
     }
 
     public static func parseClass(attributes: [String: String]) -> Class {
