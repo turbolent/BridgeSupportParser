@@ -44,11 +44,13 @@ public struct Argument: Equatable {
     public let index: Int?
     public var type32: Type?
     public var type64: Type?
+    public let declaredType: String?
 }
 
 public struct ReturnValue: Equatable {
     public var type32: Type?
     public var type64: Type?
+    public let declaredType: String?
 }
 
 public struct Function: Equatable {
@@ -66,6 +68,7 @@ public struct Constant: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+    public let declaredType: String?
 }
 
 public struct Enum: Equatable {
@@ -673,7 +676,8 @@ public class Parser: XMLParserDelegate {
         let result = Constant(
             name: name,
             type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) }
+            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            declaredType: attributes["declared_type"]
         )
         guard result.type32 != nil || result.type64 != nil else {
             fatalError("missing 32-bit or 64-bit value in constant declaration")
@@ -726,6 +730,8 @@ public class Parser: XMLParserDelegate {
     }
 
     private static func parseReturnValue(attributes: [String: String]) -> ReturnValue {
+        let declaredType = attributes["declared_type"]
+
         let isFunctionPointer = attributes["function_pointer"] == "true"
         let typeAttribute = attributes["type"]
         if isFunctionPointer {
@@ -738,19 +744,24 @@ public class Parser: XMLParserDelegate {
                 fatalError("invalid 64-bit type for function pointer return value")
             }
             return ReturnValue(
-                type32: .FunctionType(FunctionType())
+                type32: .FunctionType(FunctionType()),
+                type64: nil,
+                declaredType: declaredType
             )
         }
         // NOTE: return value has neither type nor type64 if method has type or type64
         return ReturnValue(
             type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) }
+            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            declaredType: declaredType
         )
     }
 
     private static func parseArgument(attributes: [String: String]) -> Argument {
         let name = attributes["name"] ?? ""
         let index = attributes["index"].flatMap { Int($0) }
+
+        let declaredType = attributes["declared_type"]
 
         let isFunctionPointer = attributes["function_pointer"] == "true"
         let typeAttribute = attributes["type"]
@@ -766,7 +777,9 @@ public class Parser: XMLParserDelegate {
             return Argument(
                 name: name,
                 index: index,
-                type32: .FunctionType(FunctionType())
+                type32: .FunctionType(FunctionType()),
+                type64: nil,
+                declaredType: declaredType
             )
         }
         // NOTE: argument has neither type nor type64 if method has type or type64
@@ -774,7 +787,8 @@ public class Parser: XMLParserDelegate {
             name: name,
             index: index,
             type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) }
+            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            declaredType: declaredType
         )
     }
 
