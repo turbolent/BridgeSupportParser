@@ -31,7 +31,7 @@ public struct UnionType: Equatable {
 // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
 public indirect enum Type: Equatable {
 
-    public struct TypeEncodingError<String: StringProtocol>: Error {
+    public struct EncodingError<String: StringProtocol>: Error {
         public let encoded: String
         public var localizedDescription: String {
             "Invalid type encoding: \(encoded)"
@@ -107,11 +107,11 @@ public indirect enum Type: Equatable {
                     // Field name end
                     guard let end = encoded.first else {
                         // TODO: provide more detailed error
-                        throw TypeEncodingError(encoded: encoded)
+                        throw EncodingError(encoded: encoded)
                     }
                     if end != quote {
                         // TODO: provide more detailed error
-                        throw TypeEncodingError(encoded: encoded)
+                        throw EncodingError(encoded: encoded)
                     }
                     encoded.removeFirst()
 
@@ -119,7 +119,7 @@ public indirect enum Type: Equatable {
                     // Field type
                     guard let fieldType = try decode(encoded: &encoded) else {
                         // TODO: provide more detailed error
-                        throw TypeEncodingError(encoded: encoded)
+                        throw EncodingError(encoded: encoded)
                     }
 
                     fields.append(Field(name: fieldName, type: fieldType))
@@ -134,11 +134,11 @@ public indirect enum Type: Equatable {
         // End
         guard let end = encoded.first else {
             // TODO: provide more detailed error
-            throw TypeEncodingError(encoded: encoded)
+            throw EncodingError(encoded: encoded)
         }
         if end != expectedEnd {
             // TODO: provide more detailed error
-            throw TypeEncodingError(encoded: encoded)
+            throw EncodingError(encoded: encoded)
         }
         encoded.removeFirst()
 
@@ -226,7 +226,7 @@ public indirect enum Type: Equatable {
                 let sizePrefix = encoded.prefix { "0"..."9" ~= $0 }
                 if sizePrefix.isEmpty {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 let size = Swift.Int(sizePrefix)!
                 encoded.removeFirst(sizePrefix.count)
@@ -234,17 +234,17 @@ public indirect enum Type: Equatable {
                 // Element type
                 guard let element = try decode(encoded: &encoded) else {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
 
                 // End
                 guard let end = encoded.first else {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 if end != "]" {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 encoded.removeFirst()
 
@@ -277,7 +277,7 @@ public indirect enum Type: Equatable {
                 let sizePrefix = encoded.prefix { "0"..."9" ~= $0 }
                 if sizePrefix.isEmpty {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 let size = Swift.Int(sizePrefix)!
                 encoded.removeFirst(sizePrefix.count)
@@ -288,7 +288,7 @@ public indirect enum Type: Equatable {
                 encoded.removeFirst()
                 guard let inner = try decode(encoded: &encoded) else {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 return .Pointer(inner)
 
@@ -299,7 +299,7 @@ public indirect enum Type: Equatable {
                 encoded.removeFirst()
                 guard let inner = try decode(encoded: &encoded) else {
                     // TODO: provide more detailed error
-                    throw TypeEncodingError(encoded: encoded)
+                    throw EncodingError(encoded: encoded)
                 }
                 return .Const(inner)
 
@@ -312,11 +312,11 @@ public indirect enum Type: Equatable {
         var encoded = Substring(encoded)
         guard let type = try Self.decode(encoded: &encoded) else {
             // TODO: provide more detailed error
-            throw TypeEncodingError(encoded: encoded)
+            throw EncodingError(encoded: encoded)
         }
         if !encoded.isEmpty {
             // TODO: provide more detailed error
-            throw TypeEncodingError(encoded: encoded)
+            throw EncodingError(encoded: encoded)
         }
         self = type
     }

@@ -39,12 +39,42 @@ public struct File: Equatable {
     public var definitions: [Definition] = []
 }
 
+public enum TypeModifier: Equatable {
+    public struct EncodingError<String: StringProtocol>: Error {
+        public let encoded: String
+        public var localizedDescription: String {
+            "Invalid type encoding: \(encoded)"
+        }
+    }
+
+    case In
+    case Out
+    case InOut
+
+    init(encoded: String) throws {
+        switch encoded {
+            case "n":
+                self = .In
+
+            case "o":
+                self = .Out
+
+            case "N":
+                self = .InOut
+
+            default:
+                throw EncodingError(encoded: encoded)
+        }
+    }
+}
+
 public struct Argument: Equatable {
     public let name: String
     public let index: Int?
     public var type32: Type?
     public var type64: Type?
     public let declaredType: String?
+    public let typeModifier: TypeModifier?
 }
 
 public struct ReturnValue: Equatable {
@@ -766,6 +796,10 @@ public class Parser: XMLParserDelegate {
 
         let declaredType = attributes["declared_type"]
 
+        let typeModifier = attributes["type_modifier"].map {
+            try! TypeModifier(encoded: $0)
+        }
+
         let isFunctionPointer = attributes["function_pointer"] == "true"
         let typeAttribute = attributes["type"]
         if isFunctionPointer {
@@ -782,16 +816,19 @@ public class Parser: XMLParserDelegate {
                 index: index,
                 type32: .FunctionType(FunctionType()),
                 type64: nil,
-                declaredType: declaredType
+                declaredType: declaredType,
+                typeModifier: typeModifier
             )
         }
+
         // NOTE: argument has neither type nor type64 if method has type or type64
         return Argument(
             name: name,
             index: index,
             type32: attributes["type"].map { try! Type(encoded: $0) },
             type64: attributes["type64"].map { try! Type(encoded: $0) },
-            declaredType: declaredType
+            declaredType: declaredType,
+            typeModifier: typeModifier
         )
     }
 

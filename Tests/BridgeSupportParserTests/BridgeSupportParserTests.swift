@@ -38,7 +38,8 @@ class BridgeSupportParserTests: XCTestCase {
                                             index: 0,
                                             type32: .UnsignedInt,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         )
                                     ],
                                     returnValue: ReturnValue(
@@ -58,7 +59,8 @@ class BridgeSupportParserTests: XCTestCase {
                                             index: 0,
                                             type32: .UnsignedInt,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         )
                                     ],
                                     returnValue: ReturnValue(
@@ -98,7 +100,8 @@ class BridgeSupportParserTests: XCTestCase {
                                             index: nil,
                                             type32: .Int,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         ),
                                         Argument(
                                             name: "bar",
@@ -110,14 +113,16 @@ class BridgeSupportParserTests: XCTestCase {
                                                         index: nil,
                                                         type32: .Float,
                                                         type64: nil,
-                                                        declaredType: nil
+                                                        declaredType: nil,
+                                                        typeModifier: nil
                                                     ),
                                                     Argument(
                                                         name: "",
                                                         index: nil,
                                                         type32: .Double,
                                                         type64: nil,
-                                                        declaredType: nil
+                                                        declaredType: nil,
+                                                        typeModifier: nil
                                                     )
                                                 ],
                                                 returnValue: ReturnValue(
@@ -127,14 +132,16 @@ class BridgeSupportParserTests: XCTestCase {
                                                 )
                                             )),
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         ),
                                         Argument(
                                             name: "baz",
                                             index: nil,
                                             type32: .UnsignedInt,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         )
                                     ],
                                     returnValue: ReturnValue(
@@ -174,14 +181,16 @@ class BridgeSupportParserTests: XCTestCase {
                                             index: nil,
                                             type32: .Int,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         ),
                                         Argument(
                                             name: "bar",
                                             index: nil,
                                             type32: .UnsignedInt,
                                             type64: nil,
-                                            declaredType: nil
+                                            declaredType: nil,
+                                            typeModifier: nil
                                         )
                                     ],
                                     returnValue: ReturnValue(
@@ -192,14 +201,16 @@ class BridgeSupportParserTests: XCTestCase {
                                                     index: nil,
                                                     type32: .Float,
                                                     type64: nil,
-                                                    declaredType: nil
+                                                    declaredType: nil,
+                                                    typeModifier: nil
                                                 ),
                                                 Argument(
                                                     name: "",
                                                     index: nil,
                                                     type32: .Double,
                                                     type64: nil,
-                                                    declaredType: nil
+                                                    declaredType: nil,
+                                                    typeModifier: nil
                                                 )
                                             ],
                                             returnValue: ReturnValue(
@@ -239,7 +250,8 @@ class BridgeSupportParserTests: XCTestCase {
                                     index: 0,
                                     type32: .UnsignedInt,
                                     type64: nil,
-                                    declaredType: nil
+                                    declaredType: nil,
+                                    typeModifier: nil
                                 )
                             ],
                             returnValue: ReturnValue(
@@ -258,7 +270,8 @@ class BridgeSupportParserTests: XCTestCase {
                                     index: 0,
                                     type32: .Int,
                                     type64: nil,
-                                    declaredType: nil
+                                    declaredType: nil,
+                                    typeModifier: nil
                                 )
                             ],
                             returnValue: ReturnValue(
