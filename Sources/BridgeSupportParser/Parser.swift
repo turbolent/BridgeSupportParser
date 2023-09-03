@@ -1,5 +1,7 @@
-import FoundationXML
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 
 public struct Class: Equatable {
     public let name: String
