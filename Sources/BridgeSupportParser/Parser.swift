@@ -133,7 +133,7 @@ public struct FunctionAlias: Equatable {
     public let original: String
 }
 
-public class Parser: XMLParserDelegate {
+public class Parser: NSObject, XMLParserDelegate {
 
     // see BridgeSupport.dtd
     private enum Element: String {
@@ -189,6 +189,7 @@ public class Parser: XMLParserDelegate {
 
     private init(parser: XMLParser) {
         self.parser = parser
+        super.init()
         parser.delegate = self
     }
 
