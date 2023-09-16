@@ -9,4 +9,8 @@
         <arg name='blub' index='0' type='i' />
         <retval type='I' />
     </function>
+    <function name='consts'>
+        <arg name='in' index='0' type='^i' const='true' />
+        <retval type='^i' const='true' />
+    </function>
 </signatures>
