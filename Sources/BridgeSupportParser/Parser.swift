@@ -118,6 +118,7 @@ public struct Argument: Equatable {
     public var type64: Type?
     public let declaredType: String?
     public let typeModifier: TypeModifier?
+    public let isConst: Bool
 
     public init(
         name: String,
@@ -125,7 +126,8 @@ public struct Argument: Equatable {
         type32: Type? = nil,
         type64: Type? = nil,
         declaredType: String? = nil,
-        typeModifier: TypeModifier? = nil
+        typeModifier: TypeModifier? = nil,
+        isConst: Bool = false
     ) {
         self.name = name
         self.index = index
@@ -133,6 +135,7 @@ public struct Argument: Equatable {
         self.type64 = type64
         self.declaredType = declaredType
         self.typeModifier = typeModifier
+        self.isConst = isConst
     }
 }
 
@@ -140,15 +143,18 @@ public struct ReturnValue: Equatable {
     public var type32: Type?
     public var type64: Type?
     public let declaredType: String?
+    public let isConst: Bool
 
     public init(
         type32: Type? = nil,
         type64: Type? = nil,
-        declaredType: String? = nil
+        declaredType: String? = nil,
+        isConst: Bool = false
     ) {
         self.type32 = type32
         self.type64 = type64
         self.declaredType = declaredType
+        self.isConst = isConst
     }
 }
 
@@ -186,17 +192,20 @@ public struct Constant: Equatable {
     public let type32: Type?
     public let type64: Type?
     public let declaredType: String?
+    public let isConst: Bool
 
     public init(
         name: String,
         type32: Type? = nil,
         type64: Type? = nil,
-        declaredType: String? = nil
+        declaredType: String? = nil,
+        isConst: Bool = false
     ) {
         self.name = name
         self.type32 = type32
         self.type64 = type64
         self.declaredType = declaredType
+        self.isConst = isConst
     }
 }
 
@@ -860,7 +869,8 @@ public class Parser: NSObject, XMLParserDelegate {
             name: name,
             type32: attributes["type"].map { try! Type(encoded: $0) },
             type64: attributes["type64"].map { try! Type(encoded: $0) },
-            declaredType: attributes["declared_type"]
+            declaredType: attributes["declared_type"],
+            isConst: attributes["const"] == "true"
         )
         guard result.type32 != nil || result.type64 != nil else {
             fatalError("missing 32-bit or 64-bit value in constant declaration")
@@ -915,6 +925,8 @@ public class Parser: NSObject, XMLParserDelegate {
     private static func parseReturnValue(attributes: [String: String]) -> ReturnValue {
         let declaredType = attributes["declared_type"]
 
+        let isConst = attributes["const"] == "true"
+
         let isFunctionPointer = attributes["function_pointer"] == "true"
         let typeAttribute = attributes["type"]
         if isFunctionPointer {
@@ -929,14 +941,16 @@ public class Parser: NSObject, XMLParserDelegate {
             return ReturnValue(
                 type32: .FunctionType(FunctionType()),
                 type64: nil,
-                declaredType: declaredType
+                declaredType: declaredType,
+                isConst: isConst
             )
         }
         // NOTE: return value has neither type nor type64 if method has type or type64
         return ReturnValue(
             type32: attributes["type"].map { try! Type(encoded: $0) },
             type64: attributes["type64"].map { try! Type(encoded: $0) },
-            declaredType: declaredType
+            declaredType: declaredType,
+            isConst: isConst
         )
     }
 
@@ -949,6 +963,8 @@ public class Parser: NSObject, XMLParserDelegate {
         let typeModifier = attributes["type_modifier"].map {
             try! TypeModifier(encoded: $0)
         }
+
+        let isConst = attributes["const"] == "true"
 
         let isFunctionPointer = attributes["function_pointer"] == "true"
         let typeAttribute = attributes["type"]
@@ -967,7 +983,8 @@ public class Parser: NSObject, XMLParserDelegate {
                 type32: .FunctionType(FunctionType()),
                 type64: nil,
                 declaredType: declaredType,
-                typeModifier: typeModifier
+                typeModifier: typeModifier,
+                isConst: isConst
             )
         }
 
@@ -978,7 +995,8 @@ public class Parser: NSObject, XMLParserDelegate {
             type32: attributes["type"].map { try! Type(encoded: $0) },
             type64: attributes["type64"].map { try! Type(encoded: $0) },
             declaredType: declaredType,
-            typeModifier: typeModifier
+            typeModifier: typeModifier,
+            isConst: isConst
         )
     }
 
