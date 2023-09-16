@@ -1,5 +1,5 @@
 import XCTest
-@testable import BridgeSupportParser
+import BridgeSupportParser
 import Difference
 
 public func XCTAssertEqual<T: Equatable>(_ expected: @autoclosure () throws -> T, _ received: @autoclosure () throws -> T, file: StaticString = #filePath, line: UInt = #line) {

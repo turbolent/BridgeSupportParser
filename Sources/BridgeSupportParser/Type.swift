@@ -1,7 +1,15 @@
 
 public struct FunctionType: Equatable {
-    public private(set) var arguments: [Argument] = []
-    public var returnValue: ReturnValue? = nil
+    public private(set) var arguments: [Argument]
+    public var returnValue: ReturnValue?
+
+    public init(
+        arguments: [Argument] = [],
+        returnValue: ReturnValue? = nil
+    ) {
+        self.arguments = arguments
+        self.returnValue = returnValue
+    }
 
     public mutating func append(argument: Argument) {
         if let index = argument.index {
@@ -16,16 +24,40 @@ public struct FunctionType: Equatable {
 public struct ArrayType: Equatable {
     public let size: Int
     public let type: Type
+
+    public init(
+        size: Int,
+        type: Type
+    ) {
+        self.size = size
+        self.type = type
+    }
 }
 
 public struct StructType: Equatable {
     public let name: String
     public let fields: [Field]
+
+    public init(
+        name: String,
+        fields: [Field] = []
+    ) {
+        self.name = name
+        self.fields = fields
+    }
 }
 
 public struct UnionType: Equatable {
     public let name: String
     public let fields: [Field]
+
+    public init(
+        name: String,
+        fields: [Field] = []
+    ) {
+        self.name = name
+        self.fields = fields
+    }
 }
 
 // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
@@ -308,7 +340,7 @@ public indirect enum Type: Equatable {
         }
     }
 
-    init(encoded: some StringProtocol) throws {
+    public init(encoded: some StringProtocol) throws {
         var encoded = Substring(encoded)
         guard let type = try Self.decode(encoded: &encoded) else {
             // TODO: provide more detailed error
