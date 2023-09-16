@@ -5,23 +5,57 @@ import FoundationXML
 
 public struct Class: Equatable {
     public let name: String
-    public var methods: [Method] = []
+    public var methods: [Method]
+
+    public init(
+        name: String,
+        methods: [Method] = []
+    ) {
+        self.name = name
+        self.methods = methods
+    }
 }
 
 public struct Method: Equatable {
     public let selector: String
     public let isClassMethod: Bool
-    public var functionType: FunctionType = FunctionType()
+    public var functionType: FunctionType
+
+    public init(
+        selector: String,
+        isClassMethod: Bool,
+        functionType: FunctionType = FunctionType()
+    ) {
+        self.selector = selector
+        self.isClassMethod = isClassMethod
+        self.functionType = functionType
+    }
 }
 
 public struct Struct: Equatable {
     public let name: String
     public let type: StructType
+
+    public init(
+        name: String,
+        type: StructType
+    ) {
+        self.name = name
+        self.type = type
+    }
 }
 
 public struct Field: Equatable {
     public let name: String
     public let type: Type
+
+    public init(
+        name: String,
+        type: Type
+    ) {
+        self.name = name
+        self.type = type
+    }
 }
 
 public enum Definition: Equatable {
@@ -38,10 +72,17 @@ public enum Definition: Equatable {
 }
 
 public struct File: Equatable {
-    public var definitions: [Definition] = []
+    public var definitions: [Definition]
+
+    public init(
+        definitions: [Definition] = []
+    ) {
+        self.definitions = definitions
+    }
 }
 
 public enum TypeModifier: Equatable {
+
     public struct EncodingError<String: StringProtocol>: Error {
         public let encoded: String
         public var localizedDescription: String {
@@ -53,7 +94,7 @@ public enum TypeModifier: Equatable {
     case Out
     case InOut
 
-    init(encoded: String) throws {
+    public init(encoded: String) throws {
         switch encoded {
             case "n":
                 self = .In
@@ -77,23 +118,67 @@ public struct Argument: Equatable {
     public var type64: Type?
     public let declaredType: String?
     public let typeModifier: TypeModifier?
+
+    public init(
+        name: String,
+        index: Int? = nil,
+        type32: Type? = nil,
+        type64: Type? = nil,
+        declaredType: String? = nil,
+        typeModifier: TypeModifier? = nil
+    ) {
+        self.name = name
+        self.index = index
+        self.type32 = type32
+        self.type64 = type64
+        self.declaredType = declaredType
+        self.typeModifier = typeModifier
+    }
 }
 
 public struct ReturnValue: Equatable {
     public var type32: Type?
     public var type64: Type?
     public let declaredType: String?
+
+    public init(
+        type32: Type? = nil,
+        type64: Type? = nil,
+        declaredType: String? = nil
+    ) {
+        self.type32 = type32
+        self.type64 = type64
+        self.declaredType = declaredType
+    }
 }
 
 public struct Function: Equatable {
     public let name: String
-    public var functionType: FunctionType = FunctionType()
+    public var functionType: FunctionType
+
+    public init(
+        name: String,
+        functionType: FunctionType = FunctionType()
+    ) {
+        self.name = name
+        self.functionType = functionType
+    }
 }
 
 public struct CoreFoundationType: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+
+    public init(
+        name: String,
+        type32: Type? = nil,
+        type64: Type? = nil
+    ) {
+        self.name = name
+        self.type32 = type32
+        self.type64 = type64
+    }
 }
 
 public struct Constant: Equatable {
@@ -101,6 +186,18 @@ public struct Constant: Equatable {
     public let type32: Type?
     public let type64: Type?
     public let declaredType: String?
+
+    public init(
+        name: String,
+        type32: Type? = nil,
+        type64: Type? = nil,
+        declaredType: String? = nil
+    ) {
+        self.name = name
+        self.type32 = type32
+        self.type64 = type64
+        self.declaredType = declaredType
+    }
 }
 
 public struct Enum: Equatable {
@@ -109,28 +206,78 @@ public struct Enum: Equatable {
     public let value64: String?
     public let littleEndianValue: String?
     public let bigEndianValue: String?
+
+    public init(
+        name: String,
+        value32: String? = nil,
+        value64: String? = nil,
+        littleEndianValue: String? = nil,
+        bigEndianValue: String? = nil
+    ) {
+        self.name = name
+        self.value32 = value32
+        self.value64 = value64
+        self.littleEndianValue = littleEndianValue
+        self.bigEndianValue = bigEndianValue
+    }
 }
 
 public struct Opaque: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+
+    public init(
+        name: String,
+        type32: Type? = nil,
+        type64: Type? = nil
+    ) {
+        self.name = name
+        self.type32 = type32
+        self.type64 = type64
+    }
 }
 
 public struct InformalProtocol: Equatable {
     public let name: String
-    public var methods: [Method] = []
+    public var methods: [Method]
+
+    public init(
+        name: String,
+        methods: [Method] = []
+    ) {
+        self.name = name
+        self.methods = methods
+    }
 }
 
 public struct StringConstant: Equatable {
     public let name: String
     public let value: String
     public let isNSString: Bool
+
+    public init(
+        name: String,
+        value: String,
+        isNSString: Bool = false
+    ) {
+        self.name = name
+        self.value = value
+        self.isNSString = isNSString
+    }
 }
 
 public struct FunctionAlias: Equatable {
     public let name: String
     public let original: String
+
+    public init(
+        name: String,
+        original: String
+    ) {
+        self.name = name
+        self.original = original
+    }
 }
 
 public class Parser: NSObject, XMLParserDelegate {
