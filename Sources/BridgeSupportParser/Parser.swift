@@ -34,27 +34,36 @@ public struct Method: Equatable {
 
 public struct Struct: Equatable {
     public let name: String
-    public let type: StructType
+    public let type32: StructType?
+    public let type64: StructType?
+    public var fields: [Field]
 
     public init(
         name: String,
-        type: StructType
+        fields: [Field] = [],
+        type32: StructType? = nil,
+        type64: StructType? = nil
     ) {
         self.name = name
-        self.type = type
+        self.fields = fields
+        self.type32 = type32
+        self.type64 = type64
     }
 }
 
 public struct Field: Equatable {
     public let name: String
-    public let type: Type
+    public let type32: Type?
+    public let type64: Type?
 
     public init(
         name: String,
-        type: Type
+        type32: Type? = nil,
+        type64: Type? = nil
     ) {
         self.name = name
-        self.type = type
+        self.type32 = type32
+        self.type64 = type64
     }
 }
 
@@ -319,7 +328,7 @@ public class Parser: NSObject, XMLParserDelegate {
         case Signatures
         case DependsOn
         case Struct(Struct)
-        case StructField(Struct)
+        case StructField(Struct, Field)
         case Class(Class)
         case ClassMethod(Class, Method)
         case Function(Function)
@@ -493,14 +502,8 @@ public class Parser: NSObject, XMLParserDelegate {
                         container: .Struct
                     )
                 }
-                // Fields are ignored - their names and types are taken from the struct type
-                state = .StructField(`struct`)
-
-            case .StructField:
-                Parser.invalidElement(
-                    element,
-                    container: .Field
-                )
+                let field = Parser.parseField(attributes: attributes)
+                state = .StructField(`struct`, field)
 
             case let .Class(`class`):
                 guard case .Method = element else {
@@ -548,7 +551,7 @@ public class Parser: NSObject, XMLParserDelegate {
                 let method = Parser.parseMethod(attributes: attributes)
                 state = .InformalProtocolMethod(informalProtocol, method)
 
-            case .ClassMethod, .InformalProtocolMethod, .Function:
+            case .ClassMethod, .InformalProtocolMethod, .Function, .StructField:
                 switch element {
                 case .ReturnValue:
                     let returnValue = Parser.parseReturnValue(attributes: attributes)
@@ -564,8 +567,7 @@ public class Parser: NSObject, XMLParserDelegate {
                         expected: [
                             .ReturnValue,
                             .Argument
-                        ],
-                        container: .Method
+                        ]
                     )
                 }
 
@@ -610,9 +612,34 @@ public class Parser: NSObject, XMLParserDelegate {
                 result.definitions.append(.Struct(`struct`))
                 state = .Signatures
 
-            case let .StructField(`struct`):
-                Parser.expectEndElement(.Field, element: element)
-                state = .Struct(`struct`)
+            case var .StructField(`struct`, field):
+                switch element {
+                    case .Field:
+                        `struct`.fields.append(field)
+                        state = .Struct(`struct`)
+
+                    case .Argument:
+                        if let _ = endArgument() {
+                            // TODO:
+                            // field.functionType.append(argument: argument)
+                            state = .StructField(`struct`, field)
+                        }
+
+                    case .ReturnValue:
+                        if let _ = endReturnValue() {
+                            // TODO:
+                            // var parentFunctionType = field.functionType
+                            // guard parentFunctionType.returnValue == nil else {
+                            //     fatalError("invalid second return value for method")
+                            // }
+                            // parentFunctionType.returnValue = returnValue
+                            // field.functionType = parentFunctionType
+                            state = .StructField(`struct`, field)
+                        }
+
+                    default:
+                        fatalError("invalid state")
+                }
 
             case let .Class(`class`):
                 Parser.expectEndElement(.Class, element: element)
@@ -743,6 +770,8 @@ public class Parser: NSObject, XMLParserDelegate {
             fatalError("invalid state: expected argument, got \(String(describing: last))")
         }
 
+        // TODO: add 64-bit support
+
         switch argumentsAndReturnValues.popLast() {
             case nil:
                 return argument
@@ -772,6 +801,8 @@ public class Parser: NSObject, XMLParserDelegate {
         guard case let .ReturnValue(returnValue) = last else {
             fatalError("invalid state: expected return value, got \(String(describing: last))")
         }
+
+        // TODO: add 64-bit support
 
         switch argumentsAndReturnValues.popLast() {
             case nil:
@@ -807,15 +838,46 @@ public class Parser: NSObject, XMLParserDelegate {
         guard let name = attributes["name"] else {
             fatalError("missing name in struct declaration")
         }
-        guard let encodedType = attributes["type"] else {
-            fatalError("missing type in struct declaration")
+
+        let structType32 = attributes["type"].map { encodedType in
+            guard case let .Struct(structType) = try! Type(encoded: encodedType, bitness: .Bit32) else {
+                fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
+            }
+            return structType
         }
-        guard case let .Struct(structType) = try! Type(encoded: encodedType) else {
-            fatalError("non-struct type for struct declaration: \(encodedType)")
+
+        let structType64 = attributes["type64"].map { encodedType in
+            guard case let .Struct(structType) = try! Type(encoded: encodedType, bitness: .Bit64) else {
+                fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
+            }
+            return structType
         }
+
         return Struct(
             name: name,
-            type: structType
+            type32: structType32,
+            type64: structType64
+        )
+    }
+
+    public static func parseField(attributes: [String: String]) -> Field {
+        guard let name = attributes["name"] else {
+            fatalError("missing name in field declaration")
+        }
+        return Field(
+            name: name,
+            type32: attributes["type"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            },
+            type64: attributes["type64"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
         )
     }
 
@@ -852,8 +914,18 @@ public class Parser: NSObject, XMLParserDelegate {
         }
         let result = CoreFoundationType(
             name: name,
-            type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) }
+            type32: attributes["type"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            },
+            type64: attributes["type64"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
         )
         guard result.type32 != nil || result.type64 != nil else {
             fatalError("missing 32-bit or 64-bit type in Core Foundation type declaration")
@@ -867,8 +939,18 @@ public class Parser: NSObject, XMLParserDelegate {
         }
         let result = Constant(
             name: name,
-            type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            type32: attributes["type"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            },
+            type64: attributes["type64"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            },
             declaredType: attributes["declared_type"],
             isConst: attributes["const"] == "true"
         )
@@ -906,8 +988,18 @@ public class Parser: NSObject, XMLParserDelegate {
         }
         let result = Opaque(
             name: name,
-            type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) }
+            type32: attributes["type"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            },
+            type64: attributes["type64"].map { encodedType in
+                try! Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
         )
         guard result.type32 != nil || result.type64 != nil else {
             fatalError("missing 32-bit or 64-bit type in opaque declaration")
@@ -924,31 +1016,36 @@ public class Parser: NSObject, XMLParserDelegate {
 
     private static func parseReturnValue(attributes: [String: String]) -> ReturnValue {
         let declaredType = attributes["declared_type"]
-
         let isConst = attributes["const"] == "true"
-
         let isFunctionPointer = attributes["function_pointer"] == "true"
-        let typeAttribute = attributes["type"]
-        if isFunctionPointer {
-            if let typeAttribute {
-                guard try! Type(encoded: typeAttribute) == .Pointer(.Unknown) else {
-                    fatalError("invalid type for function pointer return value: \(typeAttribute)")
+
+        func decodeType(encoded: String, bitness: Bitness) -> Type {
+            let type = try! Type(encoded: encoded, bitness: .Bit32)
+            if isFunctionPointer {
+                guard type == .Pointer(.Unknown) else {
+                    fatalError("invalid type for function pointer return value: \(encoded)")
                 }
+                return Type.FunctionType(FunctionType())
             }
-            guard attributes["type64"] == nil else {
-                fatalError("invalid 64-bit type for function pointer return value")
-            }
-            return ReturnValue(
-                type32: .FunctionType(FunctionType()),
-                type64: nil,
-                declaredType: declaredType,
-                isConst: isConst
+            return type
+        }
+
+        let type32 = attributes["type"].map { encodedType in
+            decodeType(
+                encoded: encodedType,
+                bitness: .Bit32
             )
         }
-        // NOTE: return value has neither type nor type64 if method has type or type64
+        let type64 = attributes["type64"].map { encodedType in
+            decodeType(
+                encoded: encodedType,
+                bitness: .Bit64
+            )
+        }
+
         return ReturnValue(
-            type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            type32: type32,
+            type64: type64,
             declaredType: declaredType,
             isConst: isConst
         )
@@ -957,43 +1054,42 @@ public class Parser: NSObject, XMLParserDelegate {
     private static func parseArgument(attributes: [String: String]) -> Argument {
         let name = attributes["name"] ?? ""
         let index = attributes["index"].flatMap { Int($0) }
-
         let declaredType = attributes["declared_type"]
-
         let typeModifier = attributes["type_modifier"].map {
             try! TypeModifier(encoded: $0)
         }
-
         let isConst = attributes["const"] == "true"
-
         let isFunctionPointer = attributes["function_pointer"] == "true"
-        let typeAttribute = attributes["type"]
-        if isFunctionPointer {
-            if let typeAttribute {
-                guard try! Type(encoded: typeAttribute) == .Pointer(.Unknown) else {
-                    fatalError("invalid type for function pointer argument: \(typeAttribute)")
+
+        func decodeType(encoded: String, bitness: Bitness) -> Type {
+            let type = try! Type(encoded: encoded, bitness: .Bit32)
+            if isFunctionPointer {
+                guard type == .Pointer(.Unknown) else {
+                    fatalError("invalid type for function pointer argument: \(encoded)")
                 }
+                return Type.FunctionType(FunctionType())
             }
-            guard attributes["type64"] == nil else {
-                fatalError("invalid 64-bit type for function pointer argument")
-            }
-            return Argument(
-                name: name,
-                index: index,
-                type32: .FunctionType(FunctionType()),
-                type64: nil,
-                declaredType: declaredType,
-                typeModifier: typeModifier,
-                isConst: isConst
+            return type
+        }
+
+        let type32 = attributes["type"].map { encodedType in
+            decodeType(
+                encoded: encodedType,
+                bitness: .Bit32
+            )
+        }
+        let type64 = attributes["type64"].map { encodedType in
+            decodeType(
+                encoded: encodedType,
+                bitness: .Bit64
             )
         }
 
-        // NOTE: argument has neither type nor type64 if method has type or type64
         return Argument(
             name: name,
             index: index,
-            type32: attributes["type"].map { try! Type(encoded: $0) },
-            type64: attributes["type64"].map { try! Type(encoded: $0) },
+            type32: type32,
+            type64: type64,
             declaredType: declaredType,
             typeModifier: typeModifier,
             isConst: isConst

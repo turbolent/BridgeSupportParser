@@ -5,4 +5,11 @@
         <field name='x'/>
         <field name='y'/>
     </struct>
+
+    <struct name='Foo' type='{_Foo=&quot;retain&quot;^?}'>
+        <field type='^?' function_pointer='true' name='retain' declared_type='void *(*)(void *)'>
+            <arg type='^v' declared_type='void*'/>
+            <retval type='^v' declared_type='void*'/>
+        </field>
+    </struct>
 </signatures>
