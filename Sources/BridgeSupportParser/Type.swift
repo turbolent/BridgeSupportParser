@@ -88,6 +88,10 @@ public indirect enum Type: Equatable {
     case Float
     case Double
 
+    // Complex
+    case ComplexFloat
+    case ComplexDouble
+
     // Other
     case Bool
     case Void
@@ -230,6 +234,24 @@ public indirect enum Type: Equatable {
 
             case "d":
                 return singleResult(.Double)
+
+            // Complex
+            case "j":
+                encoded.removeFirst()
+                if encoded.isEmpty {
+                    // TODO: provide more detailed error
+                    throw EncodingError(encoded: encoded)
+                }
+                switch encoded.removeFirst() {
+                    case "f":
+                        return .ComplexFloat
+
+                    case "d":
+                        return .ComplexDouble
+
+                    default:
+                        return nil
+                }
 
             // Other
 
