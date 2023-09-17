@@ -251,11 +251,27 @@ class BridgeSupportParserTests: XCTestCase {
                 definitions: [
                     .Struct(Struct(
                         name: "Point",
-                        type: StructType(
+                        fields: [
+                            Field(name: "x"),
+                            Field(name: "y")
+                        ],
+                        type32: StructType(
                             name: "_Point",
                             fields: [
-                                Field(name: "x", type: .Float),
-                                Field(name: "y", type: .Float),
+                                Field(name: "x", type32: .Float),
+                                Field(name: "y", type32: .Float),
+                            ]
+                        )
+                    )),
+                    .Struct(Struct(
+                        name: "Foo",
+                        fields: [
+                            Field(name: "retain", type32: .Pointer(.Unknown))
+                        ],
+                        type32: StructType(
+                            name: "_Foo",
+                            fields: [
+                                Field(name: "retain", type32: .Pointer(.Unknown))
                             ]
                         )
                     ))
@@ -349,149 +365,177 @@ class BridgeSupportParserTests: XCTestCase {
         ]
 
         for (encoded, expectedtType) in tests {
-            let type = try Type(encoded: encoded)
+            let type = try Type(encoded: encoded, bitness: .Bit32)
             XCTAssertEqual(type, expectedtType)
         }
     }
 
     public func testTypeBitfieldNoSize() throws {
-        XCTAssertThrowsError(try Type(encoded: "b"))
+        XCTAssertThrowsError(try Type(encoded: "b", bitness: .Bit32))
     }
 
     public func testTypeBitfieldWithSize() throws {
-        let type = try Type(encoded: "b2")
+        let type = try Type(encoded: "b2", bitness: .Bit32)
         XCTAssertEqual(type, .Bitfield(size: 2))
     }
 
     public func testTypePointerNoInner() throws {
-        XCTAssertThrowsError(try Type(encoded: "^"))
+        XCTAssertThrowsError(try Type(encoded: "^", bitness: .Bit32))
     }
 
     public func testTypePointerWithInner() throws {
-        let type = try Type(encoded: "^i")
+        let type = try Type(encoded: "^i", bitness: .Bit32)
         XCTAssertEqual(type, .Pointer(.Int))
     }
 
     public func testTypeConstNoInner() throws {
-        XCTAssertThrowsError(try Type(encoded: "r"))
+        XCTAssertThrowsError(try Type(encoded: "r", bitness: .Bit32))
     }
 
     public func testTypeConstWithInner() throws {
-        let type = try Type(encoded: "ri")
+        let type = try Type(encoded: "ri", bitness: .Bit32)
         XCTAssertEqual(type, .Const(.Int))
     }
 
     public func testTypeArrayNoSize() throws {
-        XCTAssertThrowsError(try Type(encoded: "[]"))
+        XCTAssertThrowsError(try Type(encoded: "[]", bitness: .Bit32))
     }
 
     public func testTypeArraySizeNoElement() throws {
-        XCTAssertThrowsError(try Type(encoded: "[1]"))
+        XCTAssertThrowsError(try Type(encoded: "[1]", bitness: .Bit32))
     }
 
     public func testTypeArraySizeAndElementNoEnd() throws {
-        XCTAssertThrowsError(try Type(encoded: "[1i"))
+        XCTAssertThrowsError(try Type(encoded: "[1i", bitness: .Bit32))
     }
 
     public func testTypeArraySizeAndElementAndEnd() throws {
-        let type = try Type(encoded: "[1i]")
+        let type = try Type(encoded: "[1i]", bitness: .Bit32)
         XCTAssertEqual(type, .Array(ArrayType(size: 1, type: .Int)))
     }
 
     public func testTypeStructNoSeparator() throws {
-        let type = try Type(encoded: "{}")
+        let type = try Type(encoded: "{}", bitness: .Bit32)
         XCTAssertEqual(type, .Struct(StructType(name: "")))
     }
 
     public func testTypeStructOnlySeparator() throws {
-        let type = try Type(encoded: "{=}")
+        let type = try Type(encoded: "{=}", bitness: .Bit32)
         XCTAssertEqual(type, .Struct(StructType(name: "")))
     }
 
     public func testTypeStructOnlyName() throws {
-        let type = try Type(encoded: "{Foo}")
+        let type = try Type(encoded: "{Foo}", bitness: .Bit32)
         XCTAssertEqual(type, .Struct(StructType(name: "Foo")))
     }
 
-    public func testTypeStructNameAndFields() throws {
-        let type = try Type(encoded: "{Foo=iv}")
+    public func testTypeStructNameAndFields32Bit() throws {
+        let type = try Type(encoded: "{Foo=iv}", bitness: .Bit32)
         XCTAssertEqual(
             type,
             .Struct(StructType(
                 name: "Foo",
                 fields: [
-                    Field(name: "", type: .Int),
-                    Field(name: "", type: .Void)
+                    Field(name: "", type32: .Int),
+                    Field(name: "", type32: .Void)
+                ]
+            ))
+        )
+    }
+
+    public func testTypeStructNameAndFields64Bit() throws {
+        let type = try Type(encoded: "{Foo=iv}", bitness: .Bit64)
+        XCTAssertEqual(
+            type,
+            .Struct(StructType(
+                name: "Foo",
+                fields: [
+                    Field(name: "", type64: .Int),
+                    Field(name: "", type64: .Void)
                 ]
             ))
         )
     }
 
     public func testTypeStructNameAndFieldsWithNames() throws {
-        let type = try Type(encoded: "{Foo=\"first\"i\"second\"v}")
+        let type = try Type(encoded: "{Foo=\"first\"i\"second\"v}", bitness: .Bit32)
         XCTAssertEqual(
             type,
             .Struct(StructType(
                 name: "Foo",
                 fields: [
-                    Field(name: "first", type: .Int),
-                    Field(name: "second", type: .Void)
+                    Field(name: "first", type32: .Int),
+                    Field(name: "second", type32: .Void)
                 ]
             ))
         )
     }
 
     public func testTypeUnionOnlySeparator() throws {
-        let type = try Type(encoded: "(=)")
+        let type = try Type(encoded: "(=)", bitness: .Bit32)
         XCTAssertEqual(type, .Union(UnionType(name: "")))
     }
 
     public func testTypeUnionOnlyName() throws {
-        let type = try Type(encoded: "(Foo)")
+        let type = try Type(encoded: "(Foo)", bitness: .Bit32)
         XCTAssertEqual(type, .Union(UnionType(name: "Foo")))
     }
 
-    public func testTypeUnionNameAndFields() throws {
-        let type = try Type(encoded: "(Foo=iv)")
+    public func testTypeUnionNameAndFields32Bit() throws {
+        let type = try Type(encoded: "(Foo=iv)", bitness: .Bit32)
         XCTAssertEqual(
             type,
             .Union(UnionType(
                 name: "Foo",
                 fields: [
-                    Field(name: "", type: .Int),
-                    Field(name: "", type: .Void)
+                    Field(name: "", type32: .Int),
+                    Field(name: "", type32: .Void)
+                ]
+            ))
+        )
+    }
+
+    public func testTypeUnionNameAndFields64Bit() throws {
+        let type = try Type(encoded: "(Foo=iv)", bitness: .Bit64)
+        XCTAssertEqual(
+            type,
+            .Union(UnionType(
+                name: "Foo",
+                fields: [
+                    Field(name: "", type64: .Int),
+                    Field(name: "", type64: .Void)
                 ]
             ))
         )
     }
 
     public func testTypeComplexFloat() throws {
-        let type = try Type(encoded: "jf")
+        let type = try Type(encoded: "jf", bitness: .Bit32)
         XCTAssertEqual(type, .ComplexFloat)
     }
 
     public func testTypeComplexDouble() throws {
-        let type = try Type(encoded: "jd")
+        let type = try Type(encoded: "jd", bitness: .Bit32)
         XCTAssertEqual(type, .ComplexDouble)
     }
 
     public func testTypeComplexEmpty() throws {
-        XCTAssertThrowsError(try Type(encoded: "j"))
+        XCTAssertThrowsError(try Type(encoded: "j", bitness: .Bit32))
     }
 
     public func testTypeComplexInvalid() throws {
-        XCTAssertThrowsError(try Type(encoded: "jv"))
+        XCTAssertThrowsError(try Type(encoded: "jv", bitness: .Bit32))
     }
 
     public func testTypeUnionNameAndFieldsWithNames() throws {
-        let type = try Type(encoded: "(Foo=\"first\"i\"second\"v)")
+        let type = try Type(encoded: "(Foo=\"first\"i\"second\"v)", bitness: .Bit32)
         XCTAssertEqual(
             type,
             .Union(UnionType(
                 name: "Foo",
                 fields: [
-                    Field(name: "first", type: .Int),
-                    Field(name: "second", type: .Void)
+                    Field(name: "first", type32: .Int),
+                    Field(name: "second", type32: .Void)
                 ]
             ))
         )

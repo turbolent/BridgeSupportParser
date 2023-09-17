@@ -60,6 +60,11 @@ public struct UnionType: Equatable {
     }
 }
 
+public enum Bitness: Equatable {
+    case Bit32
+    case Bit64
+}
+
 // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
 public indirect enum Type: Equatable {
 
@@ -109,9 +114,65 @@ public indirect enum Type: Equatable {
     // Encoded as unknown (?)
     case FunctionType(FunctionType)
 
+    private static func decodeField(
+        encoded: inout Substring,
+        bitness: Bitness
+    ) throws -> Field? {
+        let quote: Character = "\""
+
+        func newField(name: String, type: Type) -> Field {
+            switch bitness {
+                case .Bit32:
+                    return Field(name: name, type32: type)
+                case .Bit64:
+                    return Field(name: name, type64: type)
+            }
+        }
+
+        // With field name
+        if let next = encoded.first, next == quote {
+            encoded.removeFirst()
+
+            let fieldName = String(encoded.prefix { $0 != quote })
+            encoded.removeFirst(fieldName.count)
+
+            // Field name end
+            guard let end = encoded.first else {
+                // TODO: provide more detailed error
+                throw EncodingError(encoded: encoded)
+            }
+            if end != quote {
+                // TODO: provide more detailed error
+                throw EncodingError(encoded: encoded)
+            }
+            encoded.removeFirst()
+
+            // Field type
+            guard let fieldType = try decode(
+                encoded: &encoded,
+                bitness: bitness
+            ) else {
+                // TODO: provide more detailed error
+                throw EncodingError(encoded: encoded)
+            }
+
+            return newField(name: fieldName, type: fieldType)
+
+        } else if let fieldType = try decode(
+            encoded: &encoded,
+            bitness: bitness
+        ) {
+            return newField(name: "", type: fieldType)
+
+        } else {
+            return nil
+        }
+    }
+
     private static func decodeNameAndFields(
         encoded: inout Substring,
-        expectedEnd: Character
+        expectedEnd: Character,
+        bitness: Bitness
     ) throws -> (
         name: String,
         fields: [Field]
@@ -121,7 +182,6 @@ public indirect enum Type: Equatable {
         var fields: [Field] = []
 
         let separator: Character = "="
-        let quote: Character = "\""
 
         // Name
         let name = encoded.prefix { $0 != separator && $0 != expectedEnd }
@@ -132,38 +192,11 @@ public indirect enum Type: Equatable {
             encoded.removeFirst()
 
             // Fields
-            while true {
-                // With field name
-                if let next = encoded.first, next == quote {
-                    encoded.removeFirst()
-
-                    let fieldName = String(encoded.prefix { $0 != quote })
-                    encoded.removeFirst(fieldName.count)
-
-                    // Field name end
-                    guard let end = encoded.first else {
-                        // TODO: provide more detailed error
-                        throw EncodingError(encoded: encoded)
-                    }
-                    if end != quote {
-                        // TODO: provide more detailed error
-                        throw EncodingError(encoded: encoded)
-                    }
-                    encoded.removeFirst()
-
-
-                    // Field type
-                    guard let fieldType = try decode(encoded: &encoded) else {
-                        // TODO: provide more detailed error
-                        throw EncodingError(encoded: encoded)
-                    }
-
-                    fields.append(Field(name: fieldName, type: fieldType))
-                } else if let fieldType = try decode(encoded: &encoded) {
-                    fields.append(Field(name: "", type: fieldType))
-                } else {
-                    break
-                }
+            while let field = try decodeField(
+                encoded: &encoded,
+                bitness: bitness
+            ) {
+                fields.append(field)
             }
         }
 
@@ -184,7 +217,11 @@ public indirect enum Type: Equatable {
         )
     }
 
-    public static func decode(encoded: inout Substring) throws -> Type? {
+    public static func decode(
+        encoded: inout Substring,
+        bitness: Bitness
+    ) throws -> Type? {
+
         guard let first = encoded.first else {
             return nil
         }
@@ -286,7 +323,10 @@ public indirect enum Type: Equatable {
                 encoded.removeFirst(sizePrefix.count)
 
                 // Element type
-                guard let element = try decode(encoded: &encoded) else {
+                guard let element = try decode(
+                    encoded: &encoded,
+                    bitness: bitness
+                ) else {
                     // TODO: provide more detailed error
                     throw EncodingError(encoded: encoded)
                 }
@@ -307,7 +347,8 @@ public indirect enum Type: Equatable {
              case "{":
                 let (name, fields) = try decodeNameAndFields(
                     encoded: &encoded,
-                    expectedEnd: "}"
+                    expectedEnd: "}",
+                    bitness: bitness
                 )
                 return .Struct(StructType(
                     name: name,
@@ -317,7 +358,8 @@ public indirect enum Type: Equatable {
             case "(":
                 let (name, fields) = try decodeNameAndFields(
                     encoded: &encoded,
-                    expectedEnd: ")"
+                    expectedEnd: ")",
+                    bitness: bitness
                 )
                 return .Union(UnionType(
                     name: name,
@@ -340,7 +382,10 @@ public indirect enum Type: Equatable {
 
             case "^":
                 encoded.removeFirst()
-                guard let inner = try decode(encoded: &encoded) else {
+                guard let inner = try decode(
+                    encoded: &encoded,
+                    bitness: bitness
+                ) else {
                     // TODO: provide more detailed error
                     throw EncodingError(encoded: encoded)
                 }
@@ -351,7 +396,10 @@ public indirect enum Type: Equatable {
 
             case "r":
                 encoded.removeFirst()
-                guard let inner = try decode(encoded: &encoded) else {
+                guard let inner = try decode(
+                    encoded: &encoded,
+                    bitness: bitness
+                ) else {
                     // TODO: provide more detailed error
                     throw EncodingError(encoded: encoded)
                 }
@@ -362,9 +410,12 @@ public indirect enum Type: Equatable {
         }
     }
 
-    public init(encoded: some StringProtocol) throws {
+    public init(encoded: some StringProtocol, bitness: Bitness) throws {
         var encoded = Substring(encoded)
-        guard let type = try Self.decode(encoded: &encoded) else {
+        guard let type = try Self.decode(
+            encoded: &encoded,
+            bitness: bitness
+        ) else {
             // TODO: provide more detailed error
             throw EncodingError(encoded: encoded)
         }
