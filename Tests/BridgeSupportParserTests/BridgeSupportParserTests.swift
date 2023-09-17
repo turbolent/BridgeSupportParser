@@ -465,6 +465,24 @@ class BridgeSupportParserTests: XCTestCase {
         )
     }
 
+    public func testTypeComplexFloat() throws {
+        let type = try Type(encoded: "jf")
+        XCTAssertEqual(type, .ComplexFloat)
+    }
+
+    public func testTypeComplexDouble() throws {
+        let type = try Type(encoded: "jd")
+        XCTAssertEqual(type, .ComplexDouble)
+    }
+
+    public func testTypeComplexEmpty() throws {
+        XCTAssertThrowsError(try Type(encoded: "j"))
+    }
+
+    public func testTypeComplexInvalid() throws {
+        XCTAssertThrowsError(try Type(encoded: "jv"))
+    }
+
     public func testTypeUnionNameAndFieldsWithNames() throws {
         let type = try Type(encoded: "(Foo=\"first\"i\"second\"v)")
         XCTAssertEqual(
