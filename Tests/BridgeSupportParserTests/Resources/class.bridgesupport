@@ -10,5 +10,8 @@
             <retval type='i' />
             <arg name='bar' index='0' type='I' />
         </method>
+        <method selector='objs'>
+            <arg name='first' index='0' type='@' variadic='true' />
+        </method>
     </class>
 </signatures>
