@@ -414,6 +414,11 @@ class BridgeSupportParserTests: XCTestCase {
         XCTAssertEqual(type, .Array(ArrayType(size: 1, type: .Int)))
     }
 
+    public func testTypeArraySizeAndElementAndNameAndEnd() throws {
+        let type = try Type(encoded: "[1@\"Protocol\"]", bitness: .Bit32)
+        XCTAssertEqual(type, .Array(ArrayType(size: 1, type: .ID)))
+    }
+
     public func testTypeStructNoSeparator() throws {
         let type = try Type(encoded: "{}", bitness: .Bit32)
         XCTAssertEqual(type, .Struct(StructType(name: "")))
@@ -539,5 +544,10 @@ class BridgeSupportParserTests: XCTestCase {
                 ]
             ))
         )
+    }
+
+    public func testTypeBlock() throws {
+        let type = try Type(encoded: "@?", bitness: .Bit32)
+        XCTAssertEqual(type, .ID)
     }
 }
