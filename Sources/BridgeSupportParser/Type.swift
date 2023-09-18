@@ -141,7 +141,7 @@ public indirect enum Type: Equatable {
                 // TODO: provide more detailed error
                 throw EncodingError(encoded: encoded)
             }
-            if end != quote {
+            guard end == quote else {
                 // TODO: provide more detailed error
                 throw EncodingError(encoded: encoded)
             }
@@ -302,7 +302,14 @@ public indirect enum Type: Equatable {
                 return singleResult(.Pointer(.Char))
 
             case "@":
-                return singleResult(.ID)
+                encoded.removeFirst()
+
+                // Special case: blocks are encoded as '@?' for some reason
+                if let next = encoded.first, next == "?" {
+                    encoded.removeFirst()
+                }
+
+                return .ID
 
             case "#":
                 return singleResult(.Class)
@@ -329,6 +336,27 @@ public indirect enum Type: Equatable {
                 ) else {
                     // TODO: provide more detailed error
                     throw EncodingError(encoded: encoded)
+                }
+
+                let quote: Character = "\""
+
+                // Name (optional)
+                if let next = encoded.first, next == quote {
+                    encoded.removeFirst()
+
+                    let name = String(encoded.prefix { $0 != quote })
+                    encoded.removeFirst(name.count)
+
+                    // Name end
+                    guard let end = encoded.first else {
+                        // TODO: provide more detailed error
+                        throw EncodingError(encoded: encoded)
+                    }
+                    guard end == quote else {
+                        // TODO: provide more detailed error
+                        throw EncodingError(encoded: encoded)
+                    }
+                    encoded.removeFirst()
                 }
 
                 // End
@@ -424,5 +452,28 @@ public indirect enum Type: Equatable {
             throw EncodingError(encoded: encoded)
         }
         self = type
+    }
+
+    public var isPointerKinded: Bool {
+        switch self {
+        case .Pointer, .FunctionType, .ID, .Class, .Selector:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isPointer: Bool {
+        switch self {
+            case .Pointer:
+                return true
+            default:
+                return false
+        }
+    }
+
+    public var isValidFunctionPointerType: Bool {
+        return self == .Pointer(.Unknown)
+            || self == .ID
     }
 }

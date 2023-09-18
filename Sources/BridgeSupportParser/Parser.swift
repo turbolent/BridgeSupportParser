@@ -1022,7 +1022,7 @@ public class Parser: NSObject, XMLParserDelegate {
         func decodeType(encoded: String, bitness: Bitness) -> Type {
             let type = try! Type(encoded: encoded, bitness: .Bit32)
             if isFunctionPointer {
-                guard type == .Pointer(.Unknown) else {
+                guard type.isValidFunctionPointerType else {
                     fatalError("invalid type for function pointer return value: \(encoded)")
                 }
                 return Type.FunctionType(FunctionType())
@@ -1064,7 +1064,7 @@ public class Parser: NSObject, XMLParserDelegate {
         func decodeType(encoded: String, bitness: Bitness) -> Type {
             let type = try! Type(encoded: encoded, bitness: .Bit32)
             if isFunctionPointer {
-                guard type == .Pointer(.Unknown) else {
+                guard type.isValidFunctionPointerType else {
                     fatalError("invalid type for function pointer argument: \(encoded)")
                 }
                 return Type.FunctionType(FunctionType())
