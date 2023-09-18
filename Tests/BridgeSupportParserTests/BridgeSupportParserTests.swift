@@ -30,7 +30,6 @@ class BridgeSupportParserTests: XCTestCase {
                         methods: [
                             Method(
                                 selector: "initWithBar:",
-                                isClassMethod: false,
                                 functionType: FunctionType(
                                     arguments: [
                                         Argument(
@@ -59,6 +58,18 @@ class BridgeSupportParserTests: XCTestCase {
                                         type32: .Int
                                     )
                                 )
+                            ),
+                            Method(
+                                selector: "objs",
+                                functionType: FunctionType(
+                                    arguments: [
+                                        Argument(
+                                            name: "first",
+                                            index: 0,
+                                            type32: .ID
+                                        )
+                                    ]
+                                )
                             )
                         ]
                     ))
@@ -82,7 +93,6 @@ class BridgeSupportParserTests: XCTestCase {
                         methods: [
                             Method(
                                 selector: "foo:bar:baz:",
-                                isClassMethod: false,
                                 functionType: FunctionType(
                                     arguments: [
                                         Argument(
@@ -139,7 +149,6 @@ class BridgeSupportParserTests: XCTestCase {
                         methods: [
                             Method(
                                 selector: "foo:bar:",
-                                isClassMethod: false,
                                 functionType: FunctionType(
                                     arguments: [
                                         Argument(
@@ -232,6 +241,18 @@ class BridgeSupportParserTests: XCTestCase {
                                 type32: .Pointer(.Int),
                                 isConst: true
                             )
+                        )
+                    )),
+                    .Function(Function(
+                        name: "objs",
+                        functionType: FunctionType(
+                            arguments: [
+                                Argument(
+                                    name: "first",
+                                    index: 0,
+                                    type32: .ID
+                                )
+                            ]
                         )
                     ))
                 ]

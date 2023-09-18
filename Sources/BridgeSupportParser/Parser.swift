@@ -20,15 +20,18 @@ public struct Method: Equatable {
     public let selector: String
     public let isClassMethod: Bool
     public var functionType: FunctionType
+    public let isVariadic: Bool
 
     public init(
         selector: String,
-        isClassMethod: Bool,
-        functionType: FunctionType = FunctionType()
+        isClassMethod: Bool = false,
+        functionType: FunctionType = FunctionType(),
+        isVariadic: Bool = false
     ) {
         self.selector = selector
         self.isClassMethod = isClassMethod
         self.functionType = functionType
+        self.isVariadic = isVariadic
     }
 }
 
@@ -170,13 +173,16 @@ public struct ReturnValue: Equatable {
 public struct Function: Equatable {
     public let name: String
     public var functionType: FunctionType
+    public let isVariadic: Bool
 
     public init(
         name: String,
-        functionType: FunctionType = FunctionType()
+        functionType: FunctionType = FunctionType(),
+        isVariadic: Bool = false
     ) {
         self.name = name
         self.functionType = functionType
+        self.isVariadic = isVariadic
     }
 }
 
@@ -893,11 +899,14 @@ public class Parser: NSObject, XMLParserDelegate {
             fatalError("missing selector in method declaration")
         }
         let isClassMethod = attributes["class_method"] == "true"
+        let isVariadic = attributes["variadic"] == "true"
+
         // TODO: parse type and type64 method signature
         // (not the same as an encoded type, see e.g. https://gcc.gnu.org/onlinedocs/gcc/Method-signatures.html)
         return Method(
             selector: selector,
-            isClassMethod: isClassMethod
+            isClassMethod: isClassMethod,
+            isVariadic: isVariadic
         )
     }
 
@@ -905,7 +914,12 @@ public class Parser: NSObject, XMLParserDelegate {
         guard let name = attributes["name"] else {
             fatalError("missing name in function declaration")
         }
-        return Function(name: name)
+        let isVariadic = attributes["variadic"] == "true"
+
+        return Function(
+            name: name,
+            isVariadic: isVariadic
+        )
     }
 
     public static func parseCoreFoundationType(attributes: [String: String]) -> CoreFoundationType {

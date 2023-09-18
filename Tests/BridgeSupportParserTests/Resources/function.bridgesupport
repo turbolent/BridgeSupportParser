@@ -13,4 +13,8 @@
         <arg name='in' index='0' type='^i' const='true' />
         <retval type='^i' const='true' />
     </function>
+
+    <function name='objs'>
+        <arg name='first' index='0' type='@' variadic='true' />
+    </function>
 </signatures>
