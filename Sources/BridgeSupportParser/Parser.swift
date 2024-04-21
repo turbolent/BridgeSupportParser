@@ -867,9 +867,7 @@ public class Parser: NSObject, XMLParserDelegate {
     }
 
     public static func parseField(attributes: [String: String]) -> Field {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in field declaration")
-        }
+        let name = attributes["name"] ?? ""
         return Field(
             name: name,
             type32: attributes["type"].map { encodedType in
