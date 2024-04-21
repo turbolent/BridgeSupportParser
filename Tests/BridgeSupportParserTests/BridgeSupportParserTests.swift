@@ -497,6 +497,82 @@ class BridgeSupportParserTests: XCTestCase {
         )
     }
 
+    public func testTypeStructNameNoFields() throws {
+        let type = try Type(encoded: "{Foo=}", bitness: .Bit32)
+        XCTAssertEqual(
+            type,
+            .Struct(StructType(
+                name: "Foo",
+                fields: []
+            ))
+        )
+    }
+
+    public func testTypeStructNameFieldWithIDAndClassNameSimple() throws {
+        let type = try Type(encoded: "{Foo=\"field\"@\"Bar\"}", bitness: .Bit32)
+        XCTAssertEqual(
+            type,
+            .Struct(StructType(
+                name: "Foo",
+                fields: [
+                    Field(name: "field", type32: .ID),
+                ]
+            ))
+        )
+    }
+
+    public func testTypeStructNameFieldWithIDAndClassNameComplex1() throws {
+        let encoded = "{_NSObjCValue=\"type\"i\"value\"(?=\"charValue\"c\"shortValue\"s\"longValue\"l\"longlongValue\"q\"floatValue\"f\"doubleValue\"d\"boolValue\"B\"selectorValue\":\"objectValue\"@\"pointerValue\"^v\"structLocation\"^v\"cStringLocation\"*)}"
+        let type = try Type(encoded: encoded, bitness: .Bit32)
+        XCTAssertEqual(
+            type,
+            .Struct(StructType(
+                name: "_NSObjCValue",
+                fields: [
+                    Field(name: "type", type32: .Int),
+                    Field(
+                        name: "value",
+                        type32: .Union(UnionType(
+                            name: "?",
+                            fields: [
+                                Field(name: "charValue", type32: .Char),
+                                Field(name: "shortValue", type32: .Short),
+                                Field(name: "longValue", type32: .Long),
+                                Field(name: "longlongValue", type32: .LongLong),
+                                Field(name: "floatValue", type32: .Float),
+                                Field(name: "doubleValue", type32: .Double),
+                                Field(name: "boolValue", type32: .Bool),
+                                Field(name: "selectorValue", type32: .Selector),
+                                Field(name: "objectValue", type32: .ID),
+                                Field(name: "pointerValue", type32: .Pointer(.Void)),
+                                Field(name: "structLocation", type32: .Pointer(.Void)),
+                                Field(name: "cStringLocation", type32: .Pointer(.Char))
+                            ]
+                        ))
+                    )
+                ]
+            ))
+        )
+    }
+
+    public func testTypeStructNameFieldWithIDAndClassNameComplex2() throws {
+        let encoded = "{_NSHandler2=\"_state\"[18i]\"_exception\"@\"NSException\"\"_others\"^v\"_thread\"^v\"_reserved1\"^v}"
+        let type = try Type(encoded: encoded, bitness: .Bit32)
+        XCTAssertEqual(
+            type,
+            .Struct(StructType(
+                name: "_NSHandler2",
+                fields: [
+                    Field(name: "_state", type32: .Array(ArrayType(size: 18, type: .Int))),
+                    Field(name: "_exception", type32: .ID),
+                    Field(name: "_others", type32: .Pointer(.Void)),
+                    Field(name: "_thread", type32: .Pointer(.Void)),
+                    Field(name: "_reserved1", type32: .Pointer(.Void))
+                ]
+            ))
+        )
+    }
+
     public func testTypeUnionOnlySeparator() throws {
         let type = try Type(encoded: "(=)", bitness: .Bit32)
         XCTAssertEqual(type, .Union(UnionType(name: "")))
@@ -569,6 +645,16 @@ class BridgeSupportParserTests: XCTestCase {
 
     public func testTypeBlock() throws {
         let type = try Type(encoded: "@?", bitness: .Bit32)
+        XCTAssertEqual(type, .ID)
+    }
+
+    public func testTypeID() throws {
+        let type = try Type(encoded: "@", bitness: .Bit32)
+        XCTAssertEqual(type, .ID)
+    }
+
+    public func testTypeIDWithClassName() throws {
+        let type = try Type(encoded: "@\"Foo\"", bitness: .Bit32)
         XCTAssertEqual(type, .ID)
     }
 }

@@ -68,6 +68,8 @@ public enum Bitness: Equatable {
 // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
 public indirect enum Type: Equatable {
 
+    private static let quote: Character = "\""
+
     public struct EncodingError<String: StringProtocol>: Error {
         public let encoded: String
         public var localizedDescription: String {
@@ -114,11 +116,35 @@ public indirect enum Type: Equatable {
     // Encoded as unknown (?)
     case FunctionType(FunctionType)
 
+    private static func readQuotedString(encoded: inout Substring) throws -> String? {
+
+        guard let next = encoded.first, next == quote else {
+            return nil
+        }
+
+        encoded.removeFirst()
+
+        let string = String(encoded.prefix { $0 != quote })
+        encoded.removeFirst(string.count)
+
+        // Field name end
+        guard let end = encoded.first else {
+            // TODO: provide more detailed error
+            throw EncodingError(encoded: encoded)
+        }
+        guard end == quote else {
+            // TODO: provide more detailed error
+            throw EncodingError(encoded: encoded)
+        }
+        encoded.removeFirst()
+
+        return string
+    }
+
     private static func decodeField(
         encoded: inout Substring,
         bitness: Bitness
     ) throws -> Field? {
-        let quote: Character = "\""
 
         func newField(name: String, type: Type) -> Field {
             switch bitness {
@@ -130,22 +156,7 @@ public indirect enum Type: Equatable {
         }
 
         // With field name
-        if let next = encoded.first, next == quote {
-            encoded.removeFirst()
-
-            let fieldName = String(encoded.prefix { $0 != quote })
-            encoded.removeFirst(fieldName.count)
-
-            // Field name end
-            guard let end = encoded.first else {
-                // TODO: provide more detailed error
-                throw EncodingError(encoded: encoded)
-            }
-            guard end == quote else {
-                // TODO: provide more detailed error
-                throw EncodingError(encoded: encoded)
-            }
-            encoded.removeFirst()
+        if let fieldName = try readQuotedString(encoded: &encoded) {
 
             // Field type
             guard let fieldType = try decode(
@@ -304,9 +315,65 @@ public indirect enum Type: Equatable {
             case "@":
                 encoded.removeFirst()
 
-                // Special case: blocks are encoded as '@?' for some reason
-                if let next = encoded.first, next == "?" {
-                    encoded.removeFirst()
+                // Special cases
+                if let next = encoded.first {
+
+                    switch next {
+                        case "?":
+                            // Blocks are encoded as '@?' for some reason
+                            encoded.removeFirst()
+
+                        case "\"":
+                            // Class name
+                            //
+                            // From LLVM's AppleObjCTypeEncodingParser.cpp:
+                            //
+                            //   We have to be careful here.  We're used to seeing
+                            //     @"NSString"
+                            //   but in records it is possible that the string following an @ is the name
+                            //   of the next field and @ means "id". This is the case if anything
+                            //   unquoted except for "}", the end of the type, or another name follows
+                            //   the quoted string.
+                            //
+                            //   E.g.
+                            //   - @"NSString"@ means "id, followed by a field named NSString of type id"
+                            //   - @"NSString"} means "a pointer to NSString and the end of the struct" -
+                            //   @"NSString""nextField" means "a pointer to NSString and a field named
+                            //   nextField" - @"NSString" followed by the end of the string means "a
+                            //   pointer to NSString"
+                            //
+                            //   As a result, the rule is: If we see @ followed by a quoted string, we
+                            //   peek. - If we see }, ), ], the end of the string, or a quote ("), the
+                            //   quoted string is a class name. - If we see anything else, the quoted
+                            //   string is a field name and we push it back onto type.
+
+                            guard let name = try readQuotedString(encoded: &encoded) else {
+                                // TODO: provide more detailed error
+                                throw EncodingError(encoded: encoded)
+                            }
+
+                            if let next = encoded.first {
+                                switch next {
+                                    case "}", ")", "]", quote:
+                                        // The quoted string is a class name – see the rule
+                                        break
+
+                                    default:
+                                        // Roll back the consumption of the quoted string
+                                        let oldEncoded = encoded
+                                        encoded = ""
+                                        encoded.append(quote)
+                                        encoded.append(contentsOf: name)
+                                        encoded.append(quote)
+                                        encoded.append(contentsOf: oldEncoded)
+                                }
+                            } else {
+                                // The quoted string is a class name – see the rule
+                            }
+
+                        default:
+                            break
+                    }
                 }
 
                 return .ID
@@ -338,26 +405,8 @@ public indirect enum Type: Equatable {
                     throw EncodingError(encoded: encoded)
                 }
 
-                let quote: Character = "\""
-
-                // Name (optional)
-                if let next = encoded.first, next == quote {
-                    encoded.removeFirst()
-
-                    let name = String(encoded.prefix { $0 != quote })
-                    encoded.removeFirst(name.count)
-
-                    // Name end
-                    guard let end = encoded.first else {
-                        // TODO: provide more detailed error
-                        throw EncodingError(encoded: encoded)
-                    }
-                    guard end == quote else {
-                        // TODO: provide more detailed error
-                        throw EncodingError(encoded: encoded)
-                    }
-                    encoded.removeFirst()
-                }
+                // Name (optional, ignored)
+                _ = try readQuotedString(encoded: &encoded)
 
                 // End
                 guard let end = encoded.first else {
