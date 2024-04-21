@@ -846,14 +846,20 @@ public class Parser: NSObject, XMLParserDelegate {
         }
 
         let structType32 = attributes["type"].map { encodedType in
-            guard case let .Struct(structType) = try! Type(encoded: encodedType, bitness: .Bit32) else {
+            guard let decodedType = try? Type(encoded: encodedType, bitness: .Bit32) else {
+                fatalError("failed to decode type: \(encodedType)")
+            }
+            guard case let .Struct(structType) = decodedType else {
                 fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
             }
             return structType
         }
 
         let structType64 = attributes["type64"].map { encodedType in
-            guard case let .Struct(structType) = try! Type(encoded: encodedType, bitness: .Bit64) else {
+            guard let decodedType = try? Type(encoded: encodedType, bitness: .Bit64) else {
+                fatalError("failed to decode type: \(encodedType)")
+            }
+            guard case let .Struct(structType) = decodedType else {
                 fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
             }
             return structType
@@ -871,16 +877,22 @@ public class Parser: NSObject, XMLParserDelegate {
         return Field(
             name: name,
             type32: attributes["type"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit32
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             },
             type64: attributes["type64"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit64
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             }
         )
     }
@@ -927,16 +939,22 @@ public class Parser: NSObject, XMLParserDelegate {
         let result = CoreFoundationType(
             name: name,
             type32: attributes["type"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit32
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             },
             type64: attributes["type64"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit64
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             }
         )
         guard result.type32 != nil || result.type64 != nil else {
@@ -952,16 +970,22 @@ public class Parser: NSObject, XMLParserDelegate {
         let result = Constant(
             name: name,
             type32: attributes["type"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit32
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             },
             type64: attributes["type64"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit64
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             },
             declaredType: attributes["declared_type"],
             isConst: attributes["const"] == "true"
@@ -1001,16 +1025,22 @@ public class Parser: NSObject, XMLParserDelegate {
         let result = Opaque(
             name: name,
             type32: attributes["type"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit32
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             },
             type64: attributes["type64"].map { encodedType in
-                try! Type(
+                guard let decodedType = try? Type(
                     encoded: encodedType,
                     bitness: .Bit64
-                )
+                ) else {
+                    fatalError("failed to decode type: \(encodedType)")
+                }
+                return decodedType
             }
         )
         guard result.type32 != nil || result.type64 != nil else {
@@ -1032,14 +1062,16 @@ public class Parser: NSObject, XMLParserDelegate {
         let isFunctionPointer = attributes["function_pointer"] == "true"
 
         func decodeType(encoded: String, bitness: Bitness) -> Type {
-            let type = try! Type(encoded: encoded, bitness: .Bit32)
+            guard let decoded = try? Type(encoded: encoded, bitness: .Bit32) else {
+                fatalError("failed to decode type: \(encoded)")
+            }
             if isFunctionPointer {
-                guard type.isValidFunctionPointerType else {
+                guard decoded.isValidFunctionPointerType else {
                     fatalError("invalid type for function pointer return value: \(encoded)")
                 }
                 return Type.FunctionType(FunctionType())
             }
-            return type
+            return decoded
         }
 
         let type32 = attributes["type"].map { encodedType in
@@ -1067,21 +1099,26 @@ public class Parser: NSObject, XMLParserDelegate {
         let name = attributes["name"] ?? ""
         let index = attributes["index"].flatMap { Int($0) }
         let declaredType = attributes["declared_type"]
-        let typeModifier = attributes["type_modifier"].map {
-            try! TypeModifier(encoded: $0)
+        let typeModifier = attributes["type_modifier"].map { encoded in
+            guard let decoded = try? TypeModifier(encoded: encoded) else {
+                fatalError("failed to decode type modifier: \(encoded)")
+            }
+            return decoded
         }
         let isConst = attributes["const"] == "true"
         let isFunctionPointer = attributes["function_pointer"] == "true"
 
         func decodeType(encoded: String, bitness: Bitness) -> Type {
-            let type = try! Type(encoded: encoded, bitness: .Bit32)
+            guard let decoded = try? Type(encoded: encoded, bitness: .Bit32) else {
+                fatalError("failed to decode type: \(encoded)")
+            }
             if isFunctionPointer {
-                guard type.isValidFunctionPointerType else {
+                guard decoded.isValidFunctionPointerType else {
                     fatalError("invalid type for function pointer argument: \(encoded)")
                 }
                 return Type.FunctionType(FunctionType())
             }
-            return type
+            return decoded
         }
 
         let type32 = attributes["type"].map { encodedType in
