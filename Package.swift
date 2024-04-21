@@ -26,6 +26,12 @@ let package = Package(
                 resources: [
                     .copy("Resources")
                 ]
+        ),
+        .executableTarget(
+            name: "BridgeSupportParserCommand",
+            dependencies: [
+                "BridgeSupportParser"
+            ]
         )
     ]
 )
