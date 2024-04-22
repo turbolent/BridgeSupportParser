@@ -304,10 +304,60 @@ public struct FunctionAlias: Equatable {
     }
 }
 
-public class Parser: NSObject, XMLParserDelegate {
+public class Parser {
+
+    public struct Position {
+        public let lineNumber: Int
+        public let columnNumber: Int
+    }
+
+    public enum Error: Swift.Error {
+        case InvalidElement(
+            element: Element,
+            expected: Set<Element>,
+            description: String,
+            position: Position
+        )
+        case InvalidStartElement(
+            tag: String,
+            position: Position
+        )
+        case InvalidEndElement(
+            tag: String,
+            position: Position
+        )
+        case InvalidState(
+            position: Position
+        )
+        case SecondReturnValue(
+            position: Position
+        )
+        case ParentNotFunctionType(
+            position: Position
+        )
+        case MissingName(
+            position: Position
+        )
+        case MissingMethodSelector(
+            position: Position
+        )
+        case InvalidType(
+            decodedType: Type,
+            bitness: Bitness
+        )
+        case MissingType(
+            position: Position
+        )
+        case MissingValue(
+            position: Position
+        )
+        case MissingOriginal(
+            position: Position
+        )
+    }
 
     // see BridgeSupport.dtd
-    private enum Element: String {
+    public enum Element: String {
         case Signatures = "signatures"
 
         case DependsOn = "depends_on"
@@ -329,39 +379,10 @@ public class Parser: NSObject, XMLParserDelegate {
         case Field = "field"
     }
 
-    private enum State {
-        case Root
-        case Signatures
-        case DependsOn
-        case Struct(Struct)
-        case StructField(Struct, Field)
-        case Class(Class)
-        case ClassMethod(Class, Method)
-        case Function(Function)
-        case CoreFoundationType(CoreFoundationType)
-        case Constant(Constant)
-        case Enum(Enum)
-        case Opaque(Opaque)
-        case InformalProtocol(InformalProtocol)
-        case InformalProtocolMethod(InformalProtocol, Method)
-        case StringConstant(StringConstant)
-        case FunctionAlias(FunctionAlias)
-    }
-
-    private let parser: XMLParser
-    private var result = File()
-    private var state: State = .Root
-    private var argumentsAndReturnValues: [ArgumentOrReturnValue] = []
-
-    private enum ArgumentOrReturnValue {
-        case Argument(Argument)
-        case ReturnValue(ReturnValue)
-    }
+    private let delegate: Delegate
 
     private init(parser: XMLParser) {
-        self.parser = parser
-        super.init()
-        parser.delegate = self
+        self.delegate = Delegate(xmlParser: parser)
     }
 
     public convenience init(data: Data) {
@@ -380,796 +401,868 @@ public class Parser: NSObject, XMLParserDelegate {
     }
 
     public func parse() throws -> File {
-        result = File()
-
-        guard parser.parse() else {
-            throw parser.parserError!
-        }
-
-        return result
+        return try delegate.parse()
     }
 
-    private static func invalidElement(
-        _ element: Element,
-        expected: Set<Element> = [],
-        container: Element? = nil
-    ) -> Never {
-        let containerDescription: String
-        if let container {
-            containerDescription = "in \(container.rawValue)"
-        } else {
-            containerDescription = "at root"
+    private class Delegate: NSObject, XMLParserDelegate {
+
+        private enum State {
+            case Root
+            case Signatures
+            case DependsOn
+            case Struct(Struct)
+            case StructField(Struct, Field)
+            case Class(Class)
+            case ClassMethod(Class, Method)
+            case Function(Function)
+            case CoreFoundationType(CoreFoundationType)
+            case Constant(Constant)
+            case Enum(Enum)
+            case Opaque(Opaque)
+            case InformalProtocol(InformalProtocol)
+            case InformalProtocolMethod(InformalProtocol, Method)
+            case StringConstant(StringConstant)
+            case FunctionAlias(FunctionAlias)
         }
 
-        let expectedDescription: String
-        switch expected.count {
-            case 0:
-                expectedDescription = ""
-            case 1:
-                expectedDescription = "expected \(expected.first!.rawValue), got "
-            default:
-                let expectedElementNames = expected.map { $0.rawValue }
-                expectedDescription =
-                    "expected one of \(expectedElementNames.joined(separator: ", ")); got "
+        private var result = File()
+        private let xmlParser: XMLParser
+
+        private var state: State = .Root
+        private var argumentsAndReturnValues: [ArgumentOrReturnValue] = []
+        private var error: (any Swift.Error)? = nil
+
+        private enum ArgumentOrReturnValue {
+            case Argument(Argument)
+            case ReturnValue(ReturnValue)
         }
 
-        fatalError("invalid element \(containerDescription): \(expectedDescription)\(element.rawValue)")
-    }
+        internal init(xmlParser: XMLParser) {
+            self.xmlParser = xmlParser
+            super.init()
+            xmlParser.delegate = self
+        }
 
-    private static func expectEndElement(_ expectedElement: Element, element: Element) {
-        guard element == expectedElement else {
-            Parser.invalidElement(
-                element,
-                expected: [expectedElement],
-                container: expectedElement
+        private var position: Position {
+            Position(
+                lineNumber: xmlParser.lineNumber,
+                columnNumber: xmlParser.columnNumber
             )
         }
-    }
 
-    public func parser(
-        _ parser: XMLParser,
-        didStartElement element: String,
-        namespaceURI: String?,
-        qualifiedName: String?,
-        attributes: [String: String]
-    ) {
-        guard let element = Element(rawValue: element) else {
-            fatalError("start of unsupported element: \(element)")
+        internal func parse() throws -> File {
+            result = File()
+            error = nil
+
+            guard xmlParser.parse() else {
+                throw xmlParser.parserError!
+            }
+
+            if let error {
+                throw error
+            }
+
+            return result
         }
 
-        switch state {
-            case .Root:
-                guard case .Signatures = element else {
-                    Parser.invalidElement(
+        private func invalidElement(
+            _ element: Element,
+            expected: Set<Element> = [],
+            container: Element? = nil
+        ) throws -> Never {
+            let containerDescription: String
+            if let container {
+                containerDescription = "in \(container.rawValue)"
+            } else {
+                containerDescription = "at root"
+            }
+
+            let expectedDescription: String
+            switch expected.count {
+                case 0:
+                    expectedDescription = ""
+                case 1:
+                    expectedDescription = "expected \(expected.first!.rawValue), got "
+                default:
+                    let expectedElementNames = expected.map { $0.rawValue }
+                    expectedDescription =
+                        "expected one of \(expectedElementNames.joined(separator: ", ")); got "
+            }
+
+            throw Error.InvalidElement(
+                element: element,
+                expected: expected,
+                description: "invalid element \(containerDescription): \(expectedDescription)\(element.rawValue)",
+                position: position
+            )
+        }
+
+        private func expectEndElement(_ expectedElement: Element, element: Element) throws {
+            guard element == expectedElement else {
+                try invalidElement(
+                    element,
+                    expected: [expectedElement],
+                    container: expectedElement
+                )
+            }
+        }
+
+        public func parser(
+            _ parser: XMLParser,
+            didStartElement element: String,
+            namespaceURI: String?,
+            qualifiedName: String?,
+            attributes: [String: String]
+        ) {
+            do {
+                try start(element: element, attributes: attributes)
+            } catch let error{
+                self.error = error
+                xmlParser.abortParsing()
+            }
+        }
+
+        private func start(element: String, attributes: [String: String]) throws {
+            guard let element = Element(rawValue: element) else {
+                throw Error.InvalidStartElement(
+                    tag: element,
+                    position: position
+                )
+            }
+
+            switch state {
+                case .Root:
+                    guard case .Signatures = element else {
+                        try invalidElement(
+                            element,
+                            expected: [.Signatures]
+                        )
+                    }
+                    state = .Signatures
+
+                case .Signatures:
+                    switch element {
+                        case .DependsOn:
+                            state = .DependsOn
+
+                        case .Struct:
+                            state = .Struct(try Self.parseStruct(attributes: attributes, position: position))
+
+                        case .Class:
+                            state = .Class(try Self.parseClass(attributes: attributes, position: position))
+
+                        case .Function:
+                            state = .Function(try Self.parseFunction(attributes: attributes, position: position))
+
+                        case .CoreFoundationType:
+                            state = .CoreFoundationType(try Self.parseCoreFoundationType(attributes: attributes, position: position))
+
+                        case .Constant:
+                            state = .Constant(try Self.parseConstant(attributes: attributes, position: position))
+
+                        case .Enum:
+                            state = .Enum(try Self.parseEnum(attributes: attributes, position: position))
+
+                        case .Opaque:
+                            state = .Opaque(try Self.parseOpaque(attributes: attributes, position: position))
+
+                        case .InformalProtocol:
+                            state = .InformalProtocol(try Self.parseInformalProtocol(attributes: attributes, position: position))
+
+                        case .StringConstant:
+                            state = .StringConstant(try Self.parseStringConstant(attributes: attributes, position: position))
+
+                        case .FunctionAlias:
+                            state = .FunctionAlias(try Self.parseFunctionAlias(attributes: attributes, position: position))
+
+                        default:
+                            try invalidElement(
+                                element,
+                                expected: [
+                                    .DependsOn,
+                                    .Struct,
+                                    .Class
+                                ],
+                                container: .Signatures
+                            )
+                    }
+
+                case .DependsOn:
+                    try invalidElement(
                         element,
-                        expected: [.Signatures]
+                        container: .DependsOn
                     )
-                }
-                state = .Signatures
 
-            case .Signatures:
-                switch element {
-                    case .DependsOn:
-                        state = .DependsOn
+                case let .Struct(`struct`):
+                    guard case .Field = element else {
+                        try invalidElement(
+                            element,
+                            expected: [.Field],
+                            container: .Struct
+                        )
+                    }
+                    let field = try Self.parseField(attributes: attributes)
+                    state = .StructField(`struct`, field)
 
-                    case .Struct:
-                        state = .Struct(Parser.parseStruct(attributes: attributes))
+                case let .Class(`class`):
+                    guard case .Method = element else {
+                        try invalidElement(
+                            element,
+                            expected: [.Method],
+                            container: .Class
+                        )
+                    }
+                    let method = try Self.parseMethod(attributes: attributes, position: position)
+                    state = .ClassMethod(`class`, method)
 
-                    case .Class:
-                        state = .Class(Parser.parseClass(attributes: attributes))
+                case .CoreFoundationType:
+                    try invalidElement(
+                        element,
+                        container: .CoreFoundationType
+                    )
 
-                    case .Function:
-                        state = .Function(Parser.parseFunction(attributes: attributes))
+                case .Constant:
+                    try invalidElement(
+                        element,
+                        container: .Constant
+                    )
 
-                    case .CoreFoundationType:
-                        state = .CoreFoundationType(Parser.parseCoreFoundationType(attributes: attributes))
+                case .Enum:
+                    try invalidElement(
+                        element,
+                        container: .Enum
+                    )
 
-                    case .Constant:
-                        state = .Constant(Parser.parseConstant(attributes: attributes))
+                case .Opaque:
+                    try invalidElement(
+                        element,
+                        container: .Opaque
+                    )
 
-                    case .Enum:
-                        state = .Enum(Parser.parseEnum(attributes: attributes))
+                case let .InformalProtocol(informalProtocol):
+                    guard case .Method = element else {
+                        try invalidElement(
+                            element,
+                            expected: [.Method],
+                            container: .InformalProtocol
+                        )
+                    }
+                    let method = try Self.parseMethod(attributes: attributes, position: position)
+                    state = .InformalProtocolMethod(informalProtocol, method)
 
-                    case .Opaque:
-                        state = .Opaque(Parser.parseOpaque(attributes: attributes))
+                case .ClassMethod, .InformalProtocolMethod, .Function, .StructField:
+                    switch element {
+                    case .ReturnValue:
+                        let returnValue = try Self.parseReturnValue(attributes: attributes)
+                        argumentsAndReturnValues.append(.ReturnValue(returnValue))
 
-                    case .InformalProtocol:
-                        state = .InformalProtocol(Parser.parseInformalProtocol(attributes: attributes))
-
-                    case .StringConstant:
-                        state = .StringConstant(Parser.parseStringConstant(attributes: attributes))
-
-                    case .FunctionAlias:
-                        state = .FunctionAlias(Parser.parseFunctionAlias(attributes: attributes))
+                    case .Argument:
+                        let argument = try Self.parseArgument(attributes: attributes)
+                        argumentsAndReturnValues.append(.Argument(argument))
 
                     default:
-                        Parser.invalidElement(
+                        try invalidElement(
                             element,
                             expected: [
-                                .DependsOn,
-                                .Struct,
-                                .Class
-                            ],
-                            container: .Signatures
+                                .ReturnValue,
+                                .Argument
+                            ]
                         )
-                }
+                    }
 
-            case .DependsOn:
-                Parser.invalidElement(
-                    element,
-                    container: .DependsOn
-                )
-
-            case let .Struct(`struct`):
-                guard case .Field = element else {
-                    Parser.invalidElement(
+                case .StringConstant:
+                    try invalidElement(
                         element,
-                        expected: [.Field],
-                        container: .Struct
+                        container: .StringConstant
                     )
-                }
-                let field = Parser.parseField(attributes: attributes)
-                state = .StructField(`struct`, field)
 
-            case let .Class(`class`):
-                guard case .Method = element else {
-                    Parser.invalidElement(
+                case .FunctionAlias:
+                    try invalidElement(
                         element,
-                        expected: [.Method],
-                        container: .Class
+                        container: .FunctionAlias
                     )
-                }
-                let method = Parser.parseMethod(attributes: attributes)
-                state = .ClassMethod(`class`, method)
-
-            case .CoreFoundationType:
-                Parser.invalidElement(
-                    element,
-                    container: .CoreFoundationType
-                )
-
-            case .Constant:
-                Parser.invalidElement(
-                    element,
-                    container: .Constant
-                )
-
-            case .Enum:
-                Parser.invalidElement(
-                    element,
-                    container: .Enum
-                )
-
-            case .Opaque:
-                Parser.invalidElement(
-                    element,
-                    container: .Opaque
-                )
-
-            case let .InformalProtocol(informalProtocol):
-                guard case .Method = element else {
-                    Parser.invalidElement(
-                        element,
-                        expected: [.Method],
-                        container: .InformalProtocol
-                    )
-                }
-                let method = Parser.parseMethod(attributes: attributes)
-                state = .InformalProtocolMethod(informalProtocol, method)
-
-            case .ClassMethod, .InformalProtocolMethod, .Function, .StructField:
-                switch element {
-                case .ReturnValue:
-                    let returnValue = Parser.parseReturnValue(attributes: attributes)
-                    argumentsAndReturnValues.append(.ReturnValue(returnValue))
-
-                case .Argument:
-                    let argument = Parser.parseArgument(attributes: attributes)
-                    argumentsAndReturnValues.append(.Argument(argument))
-
-                default:
-                    Parser.invalidElement(
-                        element,
-                        expected: [
-                            .ReturnValue,
-                            .Argument
-                        ]
-                    )
-                }
-
-            case .StringConstant:
-                Parser.invalidElement(
-                    element,
-                    container: .StringConstant
-                )
-
-            case .FunctionAlias:
-                Parser.invalidElement(
-                    element,
-                    container: .FunctionAlias
-                )
-        }
-    }
-
-    public func parser(
-        _ parser: XMLParser,
-        didEndElement element: String,
-        namespaceURI: String?,
-        qualifiedName: String?
-    ) {
-        guard let element = Element(rawValue: element) else {
-            fatalError("end of unsupported element: \(element)")
+            }
         }
 
-        switch state {
-            case .Root:
-                fatalError("invalid state")
+        public func parser(
+            _ parser: XMLParser,
+            didEndElement element: String,
+            namespaceURI: String?,
+            qualifiedName: String?
+        ) {
+            do {
+                try end(element: element)
+            } catch let error{
+                self.error = error
+                xmlParser.abortParsing()
+            }
+        }
 
-            case .Signatures:
-                Parser.expectEndElement(.Signatures, element: element)
-                state = .Root
+        private func end(element: String) throws {
+            guard let element = Element(rawValue: element) else {
+                throw Error.InvalidEndElement(
+                    tag: element,
+                    position: position
+                )
+            }
 
-            case .DependsOn:
-                Parser.expectEndElement(.DependsOn, element: element)
-                state = .Signatures
+            switch state {
+                case .Root:
+                    throw Error.InvalidState(position: position)
 
-            case let .Struct(`struct`):
-                Parser.expectEndElement(.Struct, element: element)
-                result.definitions.append(.Struct(`struct`))
-                state = .Signatures
+                case .Signatures:
+                    try expectEndElement(.Signatures, element: element)
+                    state = .Root
 
-            case var .StructField(`struct`, field):
-                switch element {
-                    case .Field:
-                        `struct`.fields.append(field)
-                        state = .Struct(`struct`)
+                case .DependsOn:
+                    try expectEndElement(.DependsOn, element: element)
+                    state = .Signatures
 
-                    case .Argument:
-                        if let _ = endArgument() {
-                            // TODO:
-                            // field.functionType.append(argument: argument)
-                            state = .StructField(`struct`, field)
-                        }
+                case let .Struct(`struct`):
+                    try expectEndElement(.Struct, element: element)
+                    result.definitions.append(.Struct(`struct`))
+                    state = .Signatures
 
-                    case .ReturnValue:
-                        if let _ = endReturnValue() {
-                            // TODO:
-                            // var parentFunctionType = field.functionType
-                            // guard parentFunctionType.returnValue == nil else {
-                            //     fatalError("invalid second return value for method")
-                            // }
-                            // parentFunctionType.returnValue = returnValue
-                            // field.functionType = parentFunctionType
-                            state = .StructField(`struct`, field)
-                        }
+                case var .StructField(`struct`, field):
+                    switch element {
+                        case .Field:
+                            `struct`.fields.append(field)
+                            state = .Struct(`struct`)
 
-                    default:
-                        fatalError("invalid state")
-                }
-
-            case let .Class(`class`):
-                Parser.expectEndElement(.Class, element: element)
-                result.definitions.append(.Class(`class`))
-                state = .Signatures
-
-            case var .ClassMethod(`class`, method):
-                switch element {
-                    case .Method:
-                        `class`.methods.append(method)
-                        state = .Class(`class`)
-
-                    case .Argument:
-                        if let argument = endArgument() {
-                            method.functionType.append(argument: argument)
-                            state = .ClassMethod(`class`, method)
-                        }
-
-                    case .ReturnValue:
-                        if let returnValue = endReturnValue() {
-                            var parentFunctionType = method.functionType
-                            guard parentFunctionType.returnValue == nil else {
-                                fatalError("invalid second return value for method")
+                        case .Argument:
+                            if let _ = try endArgument() {
+                                // TODO:
+                                // field.functionType.append(argument: argument)
+                                state = .StructField(`struct`, field)
                             }
-                            parentFunctionType.returnValue = returnValue
-                            method.functionType = parentFunctionType
-                            state = .ClassMethod(`class`, method)
-                        }
 
-                    default:
-                        fatalError("invalid state")
-                }
-
-            case let .InformalProtocol(informalProtocol):
-                Parser.expectEndElement(.InformalProtocol, element: element)
-                result.definitions.append(.InformalProtocol(informalProtocol))
-                state = .Signatures
-
-            case var .InformalProtocolMethod(informalProtocol, method):
-                switch element {
-                    case .Method:
-                        informalProtocol.methods.append(method)
-                        state = .InformalProtocol(informalProtocol)
-
-                    case .Argument:
-                        if let argument = endArgument() {
-                            method.functionType.append(argument: argument)
-                            state = .InformalProtocolMethod(informalProtocol, method)
-                        }
-
-                    case .ReturnValue:
-                        if let returnValue = endReturnValue() {
-                            var parentFunctionType = method.functionType
-                            guard parentFunctionType.returnValue == nil else {
-                                fatalError("invalid second return value for method")
+                        case .ReturnValue:
+                            if let _ = try endReturnValue() {
+                                // TODO:
+                                // var parentFunctionType = field.functionType
+                                // guard parentFunctionType.returnValue == nil else {
+                                //     throw Error.SecondReturnValue(position: position)
+                                // }
+                                // parentFunctionType.returnValue = returnValue
+                                // field.functionType = parentFunctionType
+                                state = .StructField(`struct`, field)
                             }
-                            parentFunctionType.returnValue = returnValue
-                            method.functionType = parentFunctionType
-                            state = .InformalProtocolMethod(informalProtocol, method)
-                        }
 
-                    default:
-                        fatalError("invalid state")
-                }
+                        default:
+                            throw Error.InvalidState(position: position)
+                    }
 
-            case var .Function(function):
-                switch element {
-                    case .Function:
-                        result.definitions.append(.Function(function))
-                        state = .Signatures
+                case let .Class(`class`):
+                    try expectEndElement(.Class, element: element)
+                    result.definitions.append(.Class(`class`))
+                    state = .Signatures
 
-                    case .Argument:
-                        if let argument = endArgument() {
-                            function.functionType.append(argument: argument)
-                            state = .Function(function)
-                        }
+                case var .ClassMethod(`class`, method):
+                    switch element {
+                        case .Method:
+                            `class`.methods.append(method)
+                            state = .Class(`class`)
 
-                    case .ReturnValue:
-                        if let returnValue = endReturnValue() {
-                            var parentFunctionType = function.functionType
-                            guard parentFunctionType.returnValue == nil else {
-                                fatalError("invalid second return value for method")
+                        case .Argument:
+                            if let argument = try endArgument() {
+                                method.functionType.append(argument: argument)
+                                state = .ClassMethod(`class`, method)
                             }
-                            parentFunctionType.returnValue = returnValue
-                            function.functionType = parentFunctionType
-                            state = .Function(function)
-                        }
 
-                    default:
-                        fatalError("invalid state")
-                }
+                        case .ReturnValue:
+                            if let returnValue = try endReturnValue() {
+                                var parentFunctionType = method.functionType
+                                guard parentFunctionType.returnValue == nil else {
+                                    throw Error.SecondReturnValue(position: position)
+                                }
+                                parentFunctionType.returnValue = returnValue
+                                method.functionType = parentFunctionType
+                                state = .ClassMethod(`class`, method)
+                            }
 
-            case let .CoreFoundationType(type):
-                Parser.expectEndElement(.CoreFoundationType, element: element)
-                result.definitions.append(.CoreFoundationType(type))
-                state = .Signatures
+                        default:
+                            throw Error.InvalidState(position: position)
+                    }
 
-            case let .Constant(constant):
-                Parser.expectEndElement(.Constant, element: element)
-                result.definitions.append(.Constant(constant))
-                state = .Signatures
+                case let .InformalProtocol(informalProtocol):
+                    try expectEndElement(.InformalProtocol, element: element)
+                    result.definitions.append(.InformalProtocol(informalProtocol))
+                    state = .Signatures
 
-            case let .Enum(`enum`):
-                Parser.expectEndElement(.Enum, element: element)
-                result.definitions.append(.Enum(`enum`))
-                state = .Signatures
+                case var .InformalProtocolMethod(informalProtocol, method):
+                    switch element {
+                        case .Method:
+                            informalProtocol.methods.append(method)
+                            state = .InformalProtocol(informalProtocol)
 
-            case let .Opaque(opaque):
-                Parser.expectEndElement(.Opaque, element: element)
-                result.definitions.append(.Opaque(opaque))
-                state = .Signatures
+                        case .Argument:
+                            if let argument = try endArgument() {
+                                method.functionType.append(argument: argument)
+                                state = .InformalProtocolMethod(informalProtocol, method)
+                            }
 
-            case let .StringConstant(stringConstant):
-                Parser.expectEndElement(.StringConstant, element: element)
-                result.definitions.append(.StringConstant(stringConstant))
-                state = .Signatures
+                        case .ReturnValue:
+                            if let returnValue = try endReturnValue() {
+                                var parentFunctionType = method.functionType
+                                guard parentFunctionType.returnValue == nil else {
+                                    throw Error.SecondReturnValue(position: position)
+                                }
+                                parentFunctionType.returnValue = returnValue
+                                method.functionType = parentFunctionType
+                                state = .InformalProtocolMethod(informalProtocol, method)
+                            }
 
-            case let .FunctionAlias(functionAlias):
-                Parser.expectEndElement(.FunctionAlias, element: element)
-                result.definitions.append(.FunctionAlias(functionAlias))
-                state = .Signatures
-        }
-    }
+                        default:
+                            throw Error.InvalidState(position: position)
+                    }
 
-    private func endArgument() -> Argument? {
-        let last = argumentsAndReturnValues.popLast()
-        guard case let .Argument(argument) = last else {
-            fatalError("invalid state: expected argument, got \(String(describing: last))")
-        }
+                case var .Function(function):
+                    switch element {
+                        case .Function:
+                            result.definitions.append(.Function(function))
+                            state = .Signatures
 
-        // TODO: add 64-bit support
+                        case .Argument:
+                            if let argument = try endArgument() {
+                                function.functionType.append(argument: argument)
+                                state = .Function(function)
+                            }
 
-        switch argumentsAndReturnValues.popLast() {
-            case nil:
-                return argument
+                        case .ReturnValue:
+                            if let returnValue = try endReturnValue() {
+                                var parentFunctionType = function.functionType
+                                guard parentFunctionType.returnValue == nil else {
+                                    throw Error.SecondReturnValue(position: position)
+                                }
+                                parentFunctionType.returnValue = returnValue
+                                function.functionType = parentFunctionType
+                                state = .Function(function)
+                            }
 
-            case var .Argument(parentArgument):
-                guard case .FunctionType(var parentFunctionType) = parentArgument.type32 else {
-                    fatalError("parent argument is not a function type")
-                }
-                parentFunctionType.append(argument: argument)
-                parentArgument.type32 = .FunctionType(parentFunctionType)
-                argumentsAndReturnValues.append(.Argument(parentArgument))
-                return nil
+                        default:
+                            throw Error.InvalidState(position: position)
+                    }
 
-            case var .ReturnValue(parentReturnValue):
-                guard case .FunctionType(var parentFunctionType) = parentReturnValue.type32 else {
-                    fatalError("parent return value is not a function type")
-                }
-                parentFunctionType.append(argument: argument)
-                parentReturnValue.type32 = .FunctionType(parentFunctionType)
-                argumentsAndReturnValues.append(.ReturnValue(parentReturnValue))
-                return nil
-        }
-    }
+                case let .CoreFoundationType(type):
+                    try expectEndElement(.CoreFoundationType, element: element)
+                    result.definitions.append(.CoreFoundationType(type))
+                    state = .Signatures
 
-    private func endReturnValue() -> ReturnValue? {
-        let last = argumentsAndReturnValues.popLast()
-        guard case let .ReturnValue(returnValue) = last else {
-            fatalError("invalid state: expected return value, got \(String(describing: last))")
-        }
+                case let .Constant(constant):
+                    try expectEndElement(.Constant, element: element)
+                    result.definitions.append(.Constant(constant))
+                    state = .Signatures
 
-        // TODO: add 64-bit support
+                case let .Enum(`enum`):
+                    try expectEndElement(.Enum, element: element)
+                    result.definitions.append(.Enum(`enum`))
+                    state = .Signatures
 
-        switch argumentsAndReturnValues.popLast() {
-            case nil:
-                return returnValue
+                case let .Opaque(opaque):
+                    try expectEndElement(.Opaque, element: element)
+                    result.definitions.append(.Opaque(opaque))
+                    state = .Signatures
 
-            case var .Argument(parentArgument):
-                guard case .FunctionType(var parentFunctionType) = parentArgument.type32 else {
-                    fatalError("parent argument is not a function type")
-                }
-                guard parentFunctionType.returnValue == nil else {
-                    fatalError("invalid second return value for parent argument")
-                }
-                parentFunctionType.returnValue = returnValue
-                parentArgument.type32 = .FunctionType(parentFunctionType)
-                argumentsAndReturnValues.append(.Argument(parentArgument))
-                return nil
+                case let .StringConstant(stringConstant):
+                    try expectEndElement(.StringConstant, element: element)
+                    result.definitions.append(.StringConstant(stringConstant))
+                    state = .Signatures
 
-            case var .ReturnValue(parentReturnValue):
-                guard case .FunctionType(var parentFunctionType) = parentReturnValue.type32 else {
-                    fatalError("parent return value is not a function type")
-                }
-                guard parentFunctionType.returnValue == nil else {
-                    fatalError("invalid second return value for parent return value")
-                }
-                parentFunctionType.returnValue = returnValue
-                parentReturnValue.type32 = .FunctionType(parentFunctionType)
-                argumentsAndReturnValues.append(.ReturnValue(parentReturnValue))
-                return nil
-        }
-    }
-
-    public static func parseStruct(attributes: [String: String]) -> Struct {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in struct declaration")
-        }
-
-        let structType32 = attributes["type"].map { encodedType in
-            guard let decodedType = try? Type(encoded: encodedType, bitness: .Bit32) else {
-                fatalError("failed to decode type: \(encodedType)")
+                case let .FunctionAlias(functionAlias):
+                    try expectEndElement(.FunctionAlias, element: element)
+                    result.definitions.append(.FunctionAlias(functionAlias))
+                    state = .Signatures
             }
-            guard case let .Struct(structType) = decodedType else {
-                fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
+        }
+
+        private func endArgument() throws -> Argument? {
+            let last = argumentsAndReturnValues.popLast()
+            guard case let .Argument(argument) = last else {
+                throw Error.InvalidState(position: position)
             }
-            return structType
-        }
 
-        let structType64 = attributes["type64"].map { encodedType in
-            guard let decodedType = try? Type(encoded: encodedType, bitness: .Bit64) else {
-                fatalError("failed to decode type: \(encodedType)")
+            // TODO: add 64-bit support
+
+            switch argumentsAndReturnValues.popLast() {
+                case nil:
+                    return argument
+
+                case var .Argument(parentArgument):
+                    guard case .FunctionType(var parentFunctionType) = parentArgument.type32 else {
+                        throw Error.ParentNotFunctionType(position: position)
+                    }
+                    parentFunctionType.append(argument: argument)
+                    parentArgument.type32 = .FunctionType(parentFunctionType)
+                    argumentsAndReturnValues.append(.Argument(parentArgument))
+                    return nil
+
+                case var .ReturnValue(parentReturnValue):
+                    guard case .FunctionType(var parentFunctionType) = parentReturnValue.type32 else {
+                        throw Error.ParentNotFunctionType(position: position)
+                    }
+                    parentFunctionType.append(argument: argument)
+                    parentReturnValue.type32 = .FunctionType(parentFunctionType)
+                    argumentsAndReturnValues.append(.ReturnValue(parentReturnValue))
+                    return nil
             }
-            guard case let .Struct(structType) = decodedType else {
-                fatalError("non-struct 32-bit type for struct declaration: \(encodedType)")
+        }
+
+        private func endReturnValue() throws -> ReturnValue? {
+            let last = argumentsAndReturnValues.popLast()
+            guard case let .ReturnValue(returnValue) = last else {
+                throw Error.InvalidState(position: position)
             }
-            return structType
-        }
 
-        return Struct(
-            name: name,
-            type32: structType32,
-            type64: structType64
-        )
-    }
+            // TODO: add 64-bit support
 
-    public static func parseField(attributes: [String: String]) -> Field {
-        let name = attributes["name"] ?? ""
-        return Field(
-            name: name,
-            type32: attributes["type"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit32
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
-            },
-            type64: attributes["type64"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit64
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
+            switch argumentsAndReturnValues.popLast() {
+                case nil:
+                    return returnValue
+
+                case var .Argument(parentArgument):
+                    guard case .FunctionType(var parentFunctionType) = parentArgument.type32 else {
+                        throw Error.ParentNotFunctionType(position: position)
+                    }
+                    guard parentFunctionType.returnValue == nil else {
+                        throw Error.SecondReturnValue(position: position)
+                    }
+                    parentFunctionType.returnValue = returnValue
+                    parentArgument.type32 = .FunctionType(parentFunctionType)
+                    argumentsAndReturnValues.append(.Argument(parentArgument))
+                    return nil
+
+                case var .ReturnValue(parentReturnValue):
+                    guard case .FunctionType(var parentFunctionType) = parentReturnValue.type32 else {
+                        throw Error.ParentNotFunctionType(position: position)
+                    }
+                    guard parentFunctionType.returnValue == nil else {
+                        throw Error.SecondReturnValue(position: position)
+                    }
+                    parentFunctionType.returnValue = returnValue
+                    parentReturnValue.type32 = .FunctionType(parentFunctionType)
+                    argumentsAndReturnValues.append(.ReturnValue(parentReturnValue))
+                    return nil
             }
-        )
-    }
-
-    public static func parseClass(attributes: [String: String]) -> Class {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in class declaration")
         }
-        return Class(name: name)
-    }
 
-    public static func parseMethod(attributes: [String: String]) -> Method {
-        guard let selector = attributes["selector"] else {
-            fatalError("missing selector in method declaration")
-        }
-        let isClassMethod = attributes["class_method"] == "true"
-        let isVariadic = attributes["variadic"] == "true"
-
-        // TODO: parse type and type64 method signature
-        // (not the same as an encoded type, see e.g. https://gcc.gnu.org/onlinedocs/gcc/Method-signatures.html)
-        return Method(
-            selector: selector,
-            isClassMethod: isClassMethod,
-            isVariadic: isVariadic
-        )
-    }
-
-    public static func parseFunction(attributes: [String: String]) -> Function {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in function declaration")
-        }
-        let isVariadic = attributes["variadic"] == "true"
-
-        return Function(
-            name: name,
-            isVariadic: isVariadic
-        )
-    }
-
-    public static func parseCoreFoundationType(attributes: [String: String]) -> CoreFoundationType {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in Core Foundation type declaration")
-        }
-        let result = CoreFoundationType(
-            name: name,
-            type32: attributes["type"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit32
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
-            },
-            type64: attributes["type64"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit64
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
+        public static func parseStruct(attributes: [String: String], position: Position) throws -> Struct {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
             }
-        )
-        guard result.type32 != nil || result.type64 != nil else {
-            fatalError("missing 32-bit or 64-bit type in Core Foundation type declaration")
-        }
-        return result
-    }
 
-    public static func parseConstant(attributes: [String: String]) -> Constant {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in constant declaration")
-        }
-        let result = Constant(
-            name: name,
-            type32: attributes["type"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit32
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
+            let structType32 = try attributes["type"].map { encodedType in
+                let decodedType = try Type(encoded: encodedType, bitness: .Bit32)
+                guard case let .Struct(structType) = decodedType else {
+                    throw Error.InvalidType(
+                        decodedType: decodedType,
+                        bitness: .Bit32
+                    )
                 }
-                return decodedType
-            },
-            type64: attributes["type64"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit64
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
-            },
-            declaredType: attributes["declared_type"],
-            isConst: attributes["const"] == "true"
-        )
-        guard result.type32 != nil || result.type64 != nil else {
-            fatalError("missing 32-bit or 64-bit value in constant declaration")
-        }
-        return result
-    }
-
-    public static func parseEnum(attributes: [String: String]) -> Enum {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in enum declaration")
-        }
-        let result = Enum(
-            name: name,
-            value32: attributes["value"],
-            value64: attributes["value64"],
-            littleEndianValue: attributes["le_value"],
-            bigEndianValue: attributes["be_value"]
-        )
-        guard
-            result.value32 != nil
-            || result.value64 != nil
-            || result.littleEndianValue != nil
-            || result.bigEndianValue != nil
-        else {
-            fatalError("missing 32-bit, 64-bit, little-endian, or big-endian value in enum declaration")
-        }
-        return result
-    }
-
-    public static func parseOpaque(attributes: [String: String]) -> Opaque {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in opaque declaration")
-        }
-        let result = Opaque(
-            name: name,
-            type32: attributes["type"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit32
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
-            },
-            type64: attributes["type64"].map { encodedType in
-                guard let decodedType = try? Type(
-                    encoded: encodedType,
-                    bitness: .Bit64
-                ) else {
-                    fatalError("failed to decode type: \(encodedType)")
-                }
-                return decodedType
+                return structType
             }
-        )
-        guard result.type32 != nil || result.type64 != nil else {
-            fatalError("missing 32-bit or 64-bit type in opaque declaration")
-        }
-        return result
-    }
 
-    public static func parseInformalProtocol(attributes: [String: String]) -> InformalProtocol {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in informal protocol declaration")
-        }
-        return InformalProtocol(name: name)
-    }
-
-    private static func parseReturnValue(attributes: [String: String]) -> ReturnValue {
-        let declaredType = attributes["declared_type"]
-        let isConst = attributes["const"] == "true"
-        let isFunctionPointer = attributes["function_pointer"] == "true"
-
-        func decodeType(encoded: String, bitness: Bitness) -> Type {
-            guard let decoded = try? Type(encoded: encoded, bitness: .Bit32) else {
-                fatalError("failed to decode type: \(encoded)")
-            }
-            if isFunctionPointer {
-                guard decoded.isValidFunctionPointerType else {
-                    fatalError("invalid type for function pointer return value: \(encoded)")
+            let structType64 = try attributes["type64"].map { encodedType in
+                let decodedType = try Type(encoded: encodedType, bitness: .Bit64)
+                guard case let .Struct(structType) = decodedType else {
+                    throw Error.InvalidType(
+                        decodedType: decodedType,
+                        bitness: .Bit64
+                    )
                 }
-                return Type.FunctionType(FunctionType())
+                return structType
             }
-            return decoded
-        }
 
-        let type32 = attributes["type"].map { encodedType in
-            decodeType(
-                encoded: encodedType,
-                bitness: .Bit32
-            )
-        }
-        let type64 = attributes["type64"].map { encodedType in
-            decodeType(
-                encoded: encodedType,
-                bitness: .Bit64
+            return Struct(
+                name: name,
+                type32: structType32,
+                type64: structType64
             )
         }
 
-        return ReturnValue(
-            type32: type32,
-            type64: type64,
-            declaredType: declaredType,
-            isConst: isConst
-        )
-    }
-
-    private static func parseArgument(attributes: [String: String]) -> Argument {
-        let name = attributes["name"] ?? ""
-        let index = attributes["index"].flatMap { Int($0) }
-        let declaredType = attributes["declared_type"]
-        let typeModifier = attributes["type_modifier"].map { encoded in
-            guard let decoded = try? TypeModifier(encoded: encoded) else {
-                fatalError("failed to decode type modifier: \(encoded)")
+        public static func parseField(attributes: [String: String]) throws -> Field {
+            let name = attributes["name"] ?? ""
+            let type32 = try attributes["type"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
             }
-            return decoded
+            let type64 = try attributes["type64"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
+
+            return Field(
+                name: name,
+                type32: type32,
+                type64: type64
+            )
         }
-        let isConst = attributes["const"] == "true"
-        let isFunctionPointer = attributes["function_pointer"] == "true"
 
-        func decodeType(encoded: String, bitness: Bitness) -> Type {
-            guard let decoded = try? Type(encoded: encoded, bitness: .Bit32) else {
-                fatalError("failed to decode type: \(encoded)")
+        public static func parseClass(attributes: [String: String], position: Position) throws -> Class {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
             }
-            if isFunctionPointer {
-                guard decoded.isValidFunctionPointerType else {
-                    fatalError("invalid type for function pointer argument: \(encoded)")
+            return Class(name: name)
+        }
+
+        public static func parseMethod(attributes: [String: String], position: Position) throws -> Method {
+            guard let selector = attributes["selector"] else {
+                throw Error.MissingMethodSelector(position: position)
+            }
+            let isClassMethod = attributes["class_method"] == "true"
+            let isVariadic = attributes["variadic"] == "true"
+
+            // TODO: parse type and type64 method signature
+            // (not the same as an encoded type, see e.g. https://gcc.gnu.org/onlinedocs/gcc/Method-signatures.html)
+            return Method(
+                selector: selector,
+                isClassMethod: isClassMethod,
+                isVariadic: isVariadic
+            )
+        }
+
+        public static func parseFunction(attributes: [String: String], position: Position) throws -> Function {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let isVariadic = attributes["variadic"] == "true"
+
+            return Function(
+                name: name,
+                isVariadic: isVariadic
+            )
+        }
+
+        public static func parseCoreFoundationType(attributes: [String: String], position: Position) throws -> CoreFoundationType {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let type32 = try attributes["type"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            }
+            let type64 = try attributes["type64"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+
+            }
+            guard type32 != nil || type64 != nil else {
+                throw Error.MissingType(position: position)
+            }
+
+            return CoreFoundationType(
+                name: name,
+                type32: type32,
+                type64: type64
+            )
+        }
+
+        public static func parseConstant(attributes: [String: String], position: Position) throws -> Constant {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let type32 = try attributes["type"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            }
+            let type64 = try attributes["type64"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
+            guard type32 != nil || type64 != nil else {
+                throw Error.MissingType(position: position)
+            }
+
+            return Constant(
+                name: name,
+                type32: type32,
+                type64: type64,
+                declaredType: attributes["declared_type"],
+                isConst: attributes["const"] == "true"
+            )
+        }
+
+        public static func parseEnum(attributes: [String: String], position: Position) throws -> Enum {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let result = Enum(
+                name: name,
+                value32: attributes["value"],
+                value64: attributes["value64"],
+                littleEndianValue: attributes["le_value"],
+                bigEndianValue: attributes["be_value"]
+            )
+            guard
+                result.value32 != nil
+                || result.value64 != nil
+                || result.littleEndianValue != nil
+                || result.bigEndianValue != nil
+            else {
+                throw Error.MissingValue(position: position)
+            }
+            return result
+        }
+
+        public static func parseOpaque(attributes: [String: String], position: Position) throws -> Opaque {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let type32 = try attributes["type"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            }
+            let type64 = try attributes["type64"].map { encodedType in
+                try Type(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
+            guard type32 != nil || type64 != nil else {
+                throw Error.MissingType(position: position)
+            }
+
+            return Opaque(
+                name: name,
+                type32: type32,
+                type64: type64
+            )
+        }
+
+        public static func parseInformalProtocol(attributes: [String: String], position: Position) throws -> InformalProtocol {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            return InformalProtocol(name: name)
+        }
+
+        public static func parseReturnValue(attributes: [String: String]) throws -> ReturnValue {
+            let declaredType = attributes["declared_type"]
+            let isConst = attributes["const"] == "true"
+            let isFunctionPointer = attributes["function_pointer"] == "true"
+
+            func decodeType(encoded: String, bitness: Bitness) throws -> Type {
+                let decoded = try Type(encoded: encoded, bitness: bitness)
+                if isFunctionPointer {
+                    guard decoded.isValidFunctionPointerType else {
+                        throw Error.InvalidType(
+                            decodedType: decoded,
+                            bitness: bitness
+                        )
+                    }
+                    return Type.FunctionType(FunctionType())
                 }
-                return Type.FunctionType(FunctionType())
+                return decoded
             }
-            return decoded
-        }
 
-        let type32 = attributes["type"].map { encodedType in
-            decodeType(
-                encoded: encodedType,
-                bitness: .Bit32
+            let type32 = try attributes["type"].map { encodedType in
+                try decodeType(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            }
+            let type64 = try attributes["type64"].map { encodedType in
+                try decodeType(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
+
+            return ReturnValue(
+                type32: type32,
+                type64: type64,
+                declaredType: declaredType,
+                isConst: isConst
             )
         }
-        let type64 = attributes["type64"].map { encodedType in
-            decodeType(
-                encoded: encodedType,
-                bitness: .Bit64
+
+        public static func parseArgument(attributes: [String: String]) throws -> Argument {
+            let name = attributes["name"] ?? ""
+            let index = attributes["index"].flatMap { Int($0) }
+            let declaredType = attributes["declared_type"]
+            let typeModifier = try attributes["type_modifier"].map { encoded in
+                try TypeModifier(encoded: encoded)
+            }
+            let isConst = attributes["const"] == "true"
+            let isFunctionPointer = attributes["function_pointer"] == "true"
+
+            func decodeType(encoded: String, bitness: Bitness) throws -> Type {
+                let decoded = try Type(encoded: encoded, bitness: bitness)
+                if isFunctionPointer {
+                    guard decoded.isValidFunctionPointerType else {
+                        throw Error.InvalidType(
+                            decodedType: decoded,
+                            bitness: bitness
+                        )
+                    }
+                    return Type.FunctionType(FunctionType())
+                }
+                return decoded
+            }
+
+            let type32 = try attributes["type"].map { encodedType in
+                try decodeType(
+                    encoded: encodedType,
+                    bitness: .Bit32
+                )
+            }
+            let type64 = try attributes["type64"].map { encodedType in
+                try decodeType(
+                    encoded: encodedType,
+                    bitness: .Bit64
+                )
+            }
+
+            return Argument(
+                name: name,
+                index: index,
+                type32: type32,
+                type64: type64,
+                declaredType: declaredType,
+                typeModifier: typeModifier,
+                isConst: isConst
             )
         }
 
-        return Argument(
-            name: name,
-            index: index,
-            type32: type32,
-            type64: type64,
-            declaredType: declaredType,
-            typeModifier: typeModifier,
-            isConst: isConst
-        )
-    }
+        public static func parseStringConstant(attributes: [String: String], position: Position) throws -> StringConstant {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            let isNSString = attributes["nsstring"] == "true"
+            guard let value = attributes["value"] else {
+                throw Error.MissingValue(position: position)
+            }
+            return StringConstant(
+                name: name,
+                value: value,
+                isNSString: isNSString
+            )
+        }
 
-    private static func parseStringConstant(attributes: [String: String]) -> StringConstant {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in string constant declaration")
+        public static func parseFunctionAlias(attributes: [String: String], position: Position) throws -> FunctionAlias {
+            guard let name = attributes["name"] else {
+                throw Error.MissingName(position: position)
+            }
+            guard let original = attributes["original"] else {
+                throw Error.MissingOriginal(position: position)
+            }
+            return FunctionAlias(
+                name: name,
+                original: original
+            )
         }
-        let isNSString = attributes["nsstring"] == "true"
-        guard let value = attributes["value"] else {
-            fatalError("missing value in string constant declaration")
-        }
-        return StringConstant(
-            name: name,
-            value: value,
-            isNSString: isNSString
-        )
-    }
-
-    private static func parseFunctionAlias(attributes: [String: String]) -> FunctionAlias {
-        guard let name = attributes["name"] else {
-            fatalError("missing name in function alias declaration")
-        }
-        guard let original = attributes["original"] else {
-            fatalError("missing name in function alias declaration")
-        }
-        return FunctionAlias(
-            name: name,
-            original: original
-        )
     }
 }
