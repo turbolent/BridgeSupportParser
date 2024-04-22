@@ -455,6 +455,9 @@ public class Parser {
             error = nil
 
             guard xmlParser.parse() else {
+                if let error {
+                    throw error
+                }
                 throw xmlParser.parserError!
             }
 
