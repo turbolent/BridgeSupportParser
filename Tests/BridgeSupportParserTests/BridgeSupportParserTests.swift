@@ -427,7 +427,8 @@ class BridgeSupportParserTests: XCTestCase {
     }
 
     public func testTypeArraySizeAndElementNoEnd() throws {
-        XCTAssertThrowsError(try Type(encoded: "[1i", bitness: .Bit32))
+        let type = try Type(encoded: "[1i", bitness: .Bit32)
+        XCTAssertEqual(type, .Array(ArrayType(size: 1, type: .Int)))
     }
 
     public func testTypeArraySizeAndElementAndEnd() throws {
@@ -442,6 +443,11 @@ class BridgeSupportParserTests: XCTestCase {
 
     public func testTypeStructNoSeparator() throws {
         let type = try Type(encoded: "{}", bitness: .Bit32)
+        XCTAssertEqual(type, .Struct(StructType(name: "")))
+    }
+
+    public func testTypeStructNoEnd() throws {
+        let type = try Type(encoded: "{", bitness: .Bit32)
         XCTAssertEqual(type, .Struct(StructType(name: "")))
     }
 
@@ -573,8 +579,18 @@ class BridgeSupportParserTests: XCTestCase {
         )
     }
 
+    public func testTypeUnionNoSeparator() throws {
+        let type = try Type(encoded: "()", bitness: .Bit32)
+        XCTAssertEqual(type, .Union(UnionType(name: "")))
+    }
+
     public func testTypeUnionOnlySeparator() throws {
         let type = try Type(encoded: "(=)", bitness: .Bit32)
+        XCTAssertEqual(type, .Union(UnionType(name: "")))
+    }
+
+    public func testTypeUnionNoEnd() throws {
+        let type = try Type(encoded: "(", bitness: .Bit32)
         XCTAssertEqual(type, .Union(UnionType(name: "")))
     }
 

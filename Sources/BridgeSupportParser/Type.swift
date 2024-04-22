@@ -212,16 +212,13 @@ public indirect enum Type: Equatable {
         }
 
         // End
-        guard let end = encoded.first else {
-            // TODO: provide more detailed error
-            throw EncodingError(encoded: encoded)
+        if let end = encoded.first {
+            guard end == expectedEnd else {
+                // TODO: provide more detailed error
+                throw EncodingError(encoded: encoded)
+            }
+            encoded.removeFirst()
         }
-        if end != expectedEnd {
-            // TODO: provide more detailed error
-            throw EncodingError(encoded: encoded)
-        }
-        encoded.removeFirst()
-
         return (
             name: String(name),
             fields: fields
@@ -409,15 +406,13 @@ public indirect enum Type: Equatable {
                 _ = try readQuotedString(encoded: &encoded)
 
                 // End
-                guard let end = encoded.first else {
-                    // TODO: provide more detailed error
-                    throw EncodingError(encoded: encoded)
+                if let end = encoded.first {
+                    guard end == "]" else {
+                        // TODO: provide more detailed error
+                        throw EncodingError(encoded: encoded)
+                    }
+                    encoded.removeFirst()
                 }
-                if end != "]" {
-                    // TODO: provide more detailed error
-                    throw EncodingError(encoded: encoded)
-                }
-                encoded.removeFirst()
 
                 return .Array(ArrayType(size: size, type: element))
 
