@@ -220,15 +220,21 @@ public struct CoreFoundationType: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         type32: Type? = nil,
-        type64: Type? = nil
+        type64: Type? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.type32 = type32
         self.type64 = type64
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -313,13 +319,19 @@ public struct Opaque: Equatable {
 public struct InformalProtocol: Equatable {
     public let name: String
     public var methods: [Method]
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
-        methods: [Method] = []
+        methods: [Method] = [],
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.methods = methods
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -347,14 +359,20 @@ public struct StringConstant: Equatable {
 
 public struct FunctionAlias: Equatable {
     public let name: String
-    public let original: String
+    public let original: String?
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
-        original: String
+        original: String? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.original = original
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -1010,7 +1028,11 @@ public class Parser {
             }
         }
 
-        public static func decodeType(encoded: String, bitness: Bitness, position: Position) throws -> Type {
+        public static func decodeType(
+            encoded: String,
+            bitness: Bitness,
+            position: Position
+        ) throws -> Type {
              do {
                 return try Type(encoded: encoded, bitness: bitness)
             } catch let error as Type.EncodingError {
@@ -1021,7 +1043,10 @@ public class Parser {
             }
         }
 
-        public static func parseStruct(attributes: [String: String], position: Position) throws -> Struct {
+        public static func parseStruct(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Struct {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1057,7 +1082,10 @@ public class Parser {
             )
         }
 
-        public static func parseField(attributes: [String: String], position: Position) throws -> Field {
+        public static func parseField(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Field {
             let name = attributes["name"] ?? ""
             let type32 = try attributes["type"].map { encodedType in
                 try decodeType(
@@ -1085,7 +1113,10 @@ public class Parser {
             )
         }
 
-        public static func parseClass(attributes: [String: String], position: Position) throws -> Class {
+        public static func parseClass(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Class {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1099,7 +1130,10 @@ public class Parser {
             )
         }
 
-        public static func parseMethod(attributes: [String: String], position: Position) throws -> Method {
+        public static func parseMethod(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Method {
             guard let selector = attributes["selector"] else {
                 throw Error.MissingMethodSelector(position: position)
             }
@@ -1119,7 +1153,10 @@ public class Parser {
             )
         }
 
-        public static func parseFunction(attributes: [String: String], position: Position) throws -> Function {
+        public static func parseFunction(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Function {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1135,7 +1172,10 @@ public class Parser {
             )
         }
 
-        public static func parseCoreFoundationType(attributes: [String: String], position: Position) throws -> CoreFoundationType {
+        public static func parseCoreFoundationType(
+            attributes: [String: String],
+            position: Position
+        ) throws -> CoreFoundationType {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1154,18 +1194,26 @@ public class Parser {
                 )
 
             }
-            guard type32 != nil || type64 != nil else {
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore || type32 != nil || type64 != nil else {
                 throw Error.MissingType(position: position)
             }
 
             return CoreFoundationType(
                 name: name,
                 type32: type32,
-                type64: type64
+                type64: type64,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
-        public static func parseConstant(attributes: [String: String], position: Position) throws -> Constant {
+        public static func parseConstant(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Constant {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1203,7 +1251,10 @@ public class Parser {
             )
         }
 
-        public static func parseEnum(attributes: [String: String], position: Position) throws -> Enum {
+        public static func parseEnum(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Enum {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1233,7 +1284,10 @@ public class Parser {
             )
         }
 
-        public static func parseOpaque(attributes: [String: String], position: Position) throws -> Opaque {
+        public static func parseOpaque(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Opaque {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1267,14 +1321,27 @@ public class Parser {
             )
         }
 
-        public static func parseInformalProtocol(attributes: [String: String], position: Position) throws -> InformalProtocol {
+        public static func parseInformalProtocol(
+            attributes: [String: String],
+            position: Position
+        ) throws -> InformalProtocol {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
-            return InformalProtocol(name: name)
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            return InformalProtocol(
+                name: name,
+                ignore: ignore,
+                suggestion: suggestion
+            )
         }
 
-        public static func parseReturnValue(attributes: [String: String], position: Position) throws -> ReturnValue {
+        public static func parseReturnValue(
+            attributes: [String: String],
+            position: Position
+        ) throws -> ReturnValue {
             let declaredType = attributes["declared_type"]
             let isConst = attributes["const"] == "true"
             let isFunctionPointer = attributes["function_pointer"] == "true"
@@ -1376,7 +1443,10 @@ public class Parser {
             )
         }
 
-        public static func parseStringConstant(attributes: [String: String], position: Position) throws -> StringConstant {
+        public static func parseStringConstant(
+            attributes: [String: String],
+            position: Position
+        ) throws -> StringConstant {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
@@ -1397,16 +1467,25 @@ public class Parser {
             )
         }
 
-        public static func parseFunctionAlias(attributes: [String: String], position: Position) throws -> FunctionAlias {
+        public static func parseFunctionAlias(
+            attributes: [String: String],
+            position: Position
+        ) throws -> FunctionAlias {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
-            guard let original = attributes["original"] else {
+            let original = attributes["original"]
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore || original != nil else {
                 throw Error.MissingOriginal(position: position)
             }
             return FunctionAlias(
                 name: name,
-                original: original
+                original: original,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
     }
