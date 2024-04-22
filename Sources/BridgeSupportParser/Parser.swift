@@ -119,7 +119,7 @@ public struct File: Equatable {
 
 public enum TypeModifier: Equatable {
 
-    public struct EncodingError<String: StringProtocol>: Error {
+    public struct EncodingError: Error {
         public let encoded: String
         public var localizedDescription: String {
             "Invalid type encoding: \(encoded)"
@@ -410,6 +410,10 @@ public class Parser {
         )
         case InvalidTypeEncoding(
             Type.EncodingError,
+            position: Position
+        )
+        case InvalidTypeModifierEncoding(
+            TypeModifier.EncodingError,
             position: Position
         )
     }
@@ -1310,12 +1314,26 @@ public class Parser {
             )
         }
 
-        public static func parseArgument(attributes: [String: String], position: Position) throws -> Argument {
+        public static func decodeTypeModifier(encoded: String, position: Position) throws -> TypeModifier {
+             do {
+                return try TypeModifier(encoded: encoded)
+            } catch let error as TypeModifier.EncodingError {
+                throw Error.InvalidTypeModifierEncoding(
+                    error,
+                    position: position
+                )
+            }
+        }
+
+        public static func parseArgument(
+            attributes: [String: String],
+            position: Position
+        ) throws -> Argument {
             let name = attributes["name"] ?? ""
             let index = attributes["index"].flatMap { Int($0) }
             let declaredType = attributes["declared_type"]
             let typeModifier = try attributes["type_modifier"].map { encoded in
-                try TypeModifier(encoded: encoded)
+                try decodeTypeModifier(encoded: encoded, position: position)
             }
             let isConst = attributes["const"] == "true"
             let isFunctionPointer = attributes["function_pointer"] == "true"
