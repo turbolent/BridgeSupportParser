@@ -6,13 +6,19 @@ import FoundationXML
 public struct Class: Equatable {
     public let name: String
     public var methods: [Method]
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
-        methods: [Method] = []
+        methods: [Method] = [],
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.methods = methods
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -21,17 +27,23 @@ public struct Method: Equatable {
     public let isClassMethod: Bool
     public var functionType: FunctionType
     public let isVariadic: Bool
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         selector: String,
         isClassMethod: Bool = false,
         functionType: FunctionType = FunctionType(),
-        isVariadic: Bool = false
+        isVariadic: Bool = false,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.selector = selector
         self.isClassMethod = isClassMethod
         self.functionType = functionType
         self.isVariadic = isVariadic
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -40,17 +52,23 @@ public struct Struct: Equatable {
     public let type32: StructType?
     public let type64: StructType?
     public var fields: [Field]
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         fields: [Field] = [],
         type32: StructType? = nil,
-        type64: StructType? = nil
+        type64: StructType? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.fields = fields
         self.type32 = type32
         self.type64 = type64
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -58,15 +76,21 @@ public struct Field: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         type32: Type? = nil,
-        type64: Type? = nil
+        type64: Type? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.type32 = type32
         self.type64 = type64
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -174,15 +198,21 @@ public struct Function: Equatable {
     public let name: String
     public var functionType: FunctionType
     public let isVariadic: Bool
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         functionType: FunctionType = FunctionType(),
-        isVariadic: Bool = false
+        isVariadic: Bool = false,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.functionType = functionType
         self.isVariadic = isVariadic
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -208,19 +238,25 @@ public struct Constant: Equatable {
     public let type64: Type?
     public let declaredType: String?
     public let isConst: Bool
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         type32: Type? = nil,
         type64: Type? = nil,
         declaredType: String? = nil,
-        isConst: Bool = false
+        isConst: Bool = false,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.type32 = type32
         self.type64 = type64
         self.declaredType = declaredType
         self.isConst = isConst
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -230,19 +266,25 @@ public struct Enum: Equatable {
     public let value64: String?
     public let littleEndianValue: String?
     public let bigEndianValue: String?
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         value32: String? = nil,
         value64: String? = nil,
         littleEndianValue: String? = nil,
-        bigEndianValue: String? = nil
+        bigEndianValue: String? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.value32 = value32
         self.value64 = value64
         self.littleEndianValue = littleEndianValue
         self.bigEndianValue = bigEndianValue
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -250,15 +292,21 @@ public struct Opaque: Equatable {
     public let name: String
     public let type32: Type?
     public let type64: Type?
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
         type32: Type? = nil,
-        type64: Type? = nil
+        type64: Type? = nil,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.type32 = type32
         self.type64 = type64
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -277,17 +325,23 @@ public struct InformalProtocol: Equatable {
 
 public struct StringConstant: Equatable {
     public let name: String
-    public let value: String
+    public let value: String?
     public let isNSString: Bool
+    public let ignore: Bool
+    public let suggestion: String?
 
     public init(
         name: String,
-        value: String,
-        isNSString: Bool = false
+        value: String? = nil,
+        isNSString: Bool = false,
+        ignore: Bool = false,
+        suggestion: String? = nil
     ) {
         self.name = name
         self.value = value
         self.isNSString = isNSString
+        self.ignore = ignore
+        self.suggestion = suggestion
     }
 }
 
@@ -952,7 +1006,6 @@ public class Parser {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
-
             let structType32 = try attributes["type"].map { encodedType in
                 let decodedType = try Type(encoded: encodedType, bitness: .Bit32)
                 guard case let .Struct(structType) = decodedType else {
@@ -963,7 +1016,6 @@ public class Parser {
                 }
                 return structType
             }
-
             let structType64 = try attributes["type64"].map { encodedType in
                 let decodedType = try Type(encoded: encodedType, bitness: .Bit64)
                 guard case let .Struct(structType) = decodedType else {
@@ -974,11 +1026,15 @@ public class Parser {
                 }
                 return structType
             }
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
 
             return Struct(
                 name: name,
                 type32: structType32,
-                type64: structType64
+                type64: structType64,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -996,11 +1052,15 @@ public class Parser {
                     bitness: .Bit64
                 )
             }
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
 
             return Field(
                 name: name,
                 type32: type32,
-                type64: type64
+                type64: type64,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -1008,7 +1068,14 @@ public class Parser {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
-            return Class(name: name)
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            return Class(
+                name: name,
+                ignore: ignore,
+                suggestion: suggestion
+            )
         }
 
         public static func parseMethod(attributes: [String: String], position: Position) throws -> Method {
@@ -1017,13 +1084,17 @@ public class Parser {
             }
             let isClassMethod = attributes["class_method"] == "true"
             let isVariadic = attributes["variadic"] == "true"
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
 
             // TODO: parse type and type64 method signature
             // (not the same as an encoded type, see e.g. https://gcc.gnu.org/onlinedocs/gcc/Method-signatures.html)
             return Method(
                 selector: selector,
                 isClassMethod: isClassMethod,
-                isVariadic: isVariadic
+                isVariadic: isVariadic,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -1032,10 +1103,14 @@ public class Parser {
                 throw Error.MissingName(position: position)
             }
             let isVariadic = attributes["variadic"] == "true"
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
 
             return Function(
                 name: name,
-                isVariadic: isVariadic
+                isVariadic: isVariadic,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -1083,7 +1158,12 @@ public class Parser {
                     bitness: .Bit64
                 )
             }
-            guard type32 != nil || type64 != nil else {
+            let declaredType = attributes["declared_type"]
+            let isConst = attributes["const"] == "true"
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore || type32 != nil || type64 != nil else {
                 throw Error.MissingType(position: position)
             }
 
@@ -1091,8 +1171,10 @@ public class Parser {
                 name: name,
                 type32: type32,
                 type64: type64,
-                declaredType: attributes["declared_type"],
-                isConst: attributes["const"] == "true"
+                declaredType: declaredType,
+                isConst: isConst,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -1100,22 +1182,30 @@ public class Parser {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
-            let result = Enum(
-                name: name,
-                value32: attributes["value"],
-                value64: attributes["value64"],
-                littleEndianValue: attributes["le_value"],
-                bigEndianValue: attributes["be_value"]
-            )
-            guard
-                result.value32 != nil
-                || result.value64 != nil
-                || result.littleEndianValue != nil
-                || result.bigEndianValue != nil
+            let value32 = attributes["value"]
+            let value64 = attributes["value64"]
+            let littleEndianValue = attributes["le_value"]
+            let bigEndianValue = attributes["be_value"]
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore
+                || value32 != nil
+                || value64 != nil
+                || littleEndianValue != nil
+                || bigEndianValue != nil
             else {
                 throw Error.MissingValue(position: position)
             }
-            return result
+            return Enum(
+                name: name,
+                value32: value32,
+                value64: value64,
+                littleEndianValue: littleEndianValue,
+                bigEndianValue: bigEndianValue,
+                ignore: ignore,
+                suggestion: suggestion
+            )
         }
 
         public static func parseOpaque(attributes: [String: String], position: Position) throws -> Opaque {
@@ -1134,14 +1224,19 @@ public class Parser {
                     bitness: .Bit64
                 )
             }
-            guard type32 != nil || type64 != nil else {
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore || type32 != nil || type64 != nil else {
                 throw Error.MissingType(position: position)
             }
 
             return Opaque(
                 name: name,
                 type32: type32,
-                type64: type64
+                type64: type64,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
@@ -1244,14 +1339,20 @@ public class Parser {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
+            let value = attributes["value"]
             let isNSString = attributes["nsstring"] == "true"
-            guard let value = attributes["value"] else {
+            let ignore = attributes["ignore"] == "true"
+            let suggestion = attributes["suggestion"]
+
+            guard ignore || value != nil else {
                 throw Error.MissingValue(position: position)
             }
             return StringConstant(
                 name: name,
                 value: value,
-                isNSString: isNSString
+                isNSString: isNSString,
+                ignore: ignore,
+                suggestion: suggestion
             )
         }
 
