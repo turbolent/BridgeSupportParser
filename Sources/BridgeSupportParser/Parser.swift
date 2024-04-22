@@ -408,6 +408,10 @@ public class Parser {
         case MissingOriginal(
             position: Position
         )
+        case InvalidTypeEncoding(
+            Type.EncodingError,
+            position: Position
+        )
     }
 
     // see BridgeSupport.dtd
@@ -658,7 +662,7 @@ public class Parser {
                             container: .Struct
                         )
                     }
-                    let field = try Self.parseField(attributes: attributes)
+                    let field = try Self.parseField(attributes: attributes, position: position)
                     state = .StructField(`struct`, field)
 
                 case let .Class(`class`):
@@ -710,11 +714,11 @@ public class Parser {
                 case .ClassMethod, .InformalProtocolMethod, .Function, .StructField:
                     switch element {
                     case .ReturnValue:
-                        let returnValue = try Self.parseReturnValue(attributes: attributes)
+                        let returnValue = try Self.parseReturnValue(attributes: attributes, position: position)
                         argumentsAndReturnValues.append(.ReturnValue(returnValue))
 
                     case .Argument:
-                        let argument = try Self.parseArgument(attributes: attributes)
+                        let argument = try Self.parseArgument(attributes: attributes, position: position)
                         argumentsAndReturnValues.append(.Argument(argument))
 
                     default:
@@ -1002,12 +1006,23 @@ public class Parser {
             }
         }
 
+        public static func decodeType(encoded: String, bitness: Bitness, position: Position) throws -> Type {
+             do {
+                return try Type(encoded: encoded, bitness: bitness)
+            } catch let error as Type.EncodingError {
+                throw Error.InvalidTypeEncoding(
+                    error,
+                    position: position
+                )
+            }
+        }
+
         public static func parseStruct(attributes: [String: String], position: Position) throws -> Struct {
             guard let name = attributes["name"] else {
                 throw Error.MissingName(position: position)
             }
             let structType32 = try attributes["type"].map { encodedType in
-                let decodedType = try Type(encoded: encodedType, bitness: .Bit32)
+                let decodedType = try decodeType(encoded: encodedType, bitness: .Bit32, position: position)
                 guard case let .Struct(structType) = decodedType else {
                     throw Error.InvalidType(
                         decodedType: decodedType,
@@ -1017,7 +1032,7 @@ public class Parser {
                 return structType
             }
             let structType64 = try attributes["type64"].map { encodedType in
-                let decodedType = try Type(encoded: encodedType, bitness: .Bit64)
+                let decodedType = try decodeType(encoded: encodedType, bitness: .Bit64, position: position)
                 guard case let .Struct(structType) = decodedType else {
                     throw Error.InvalidType(
                         decodedType: decodedType,
@@ -1038,18 +1053,20 @@ public class Parser {
             )
         }
 
-        public static func parseField(attributes: [String: String]) throws -> Field {
+        public static func parseField(attributes: [String: String], position: Position) throws -> Field {
             let name = attributes["name"] ?? ""
             let type32 = try attributes["type"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit32
+                    bitness: .Bit32,
+                    position: position
                 )
             }
             let type64 = try attributes["type64"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit64
+                    bitness: .Bit64,
+                    position: position
                 )
             }
             let ignore = attributes["ignore"] == "true"
@@ -1119,15 +1136,17 @@ public class Parser {
                 throw Error.MissingName(position: position)
             }
             let type32 = try attributes["type"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit32
+                    bitness: .Bit32,
+                    position: position
                 )
             }
             let type64 = try attributes["type64"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit64
+                    bitness: .Bit64,
+                    position: position
                 )
 
             }
@@ -1147,15 +1166,17 @@ public class Parser {
                 throw Error.MissingName(position: position)
             }
             let type32 = try attributes["type"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit32
+                    bitness: .Bit32,
+                    position: position
                 )
             }
             let type64 = try attributes["type64"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit64
+                    bitness: .Bit64,
+                    position: position
                 )
             }
             let declaredType = attributes["declared_type"]
@@ -1213,15 +1234,17 @@ public class Parser {
                 throw Error.MissingName(position: position)
             }
             let type32 = try attributes["type"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit32
+                    bitness: .Bit32,
+                    position: position
                 )
             }
             let type64 = try attributes["type64"].map { encodedType in
-                try Type(
+                try decodeType(
                     encoded: encodedType,
-                    bitness: .Bit64
+                    bitness: .Bit64,
+                    position: position
                 )
             }
             let ignore = attributes["ignore"] == "true"
@@ -1247,13 +1270,13 @@ public class Parser {
             return InformalProtocol(name: name)
         }
 
-        public static func parseReturnValue(attributes: [String: String]) throws -> ReturnValue {
+        public static func parseReturnValue(attributes: [String: String], position: Position) throws -> ReturnValue {
             let declaredType = attributes["declared_type"]
             let isConst = attributes["const"] == "true"
             let isFunctionPointer = attributes["function_pointer"] == "true"
 
             func decodeType(encoded: String, bitness: Bitness) throws -> Type {
-                let decoded = try Type(encoded: encoded, bitness: bitness)
+                let decoded = try Self.decodeType(encoded: encoded, bitness: bitness, position: position)
                 if isFunctionPointer {
                     guard decoded.isValidFunctionPointerType else {
                         throw Error.InvalidType(
@@ -1287,7 +1310,7 @@ public class Parser {
             )
         }
 
-        public static func parseArgument(attributes: [String: String]) throws -> Argument {
+        public static func parseArgument(attributes: [String: String], position: Position) throws -> Argument {
             let name = attributes["name"] ?? ""
             let index = attributes["index"].flatMap { Int($0) }
             let declaredType = attributes["declared_type"]
@@ -1298,7 +1321,7 @@ public class Parser {
             let isFunctionPointer = attributes["function_pointer"] == "true"
 
             func decodeType(encoded: String, bitness: Bitness) throws -> Type {
-                let decoded = try Type(encoded: encoded, bitness: bitness)
+                let decoded = try Self.decodeType(encoded: encoded, bitness: bitness, position: position)
                 if isFunctionPointer {
                     guard decoded.isValidFunctionPointerType else {
                         throw Error.InvalidType(

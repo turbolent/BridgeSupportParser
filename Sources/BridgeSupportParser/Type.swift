@@ -70,8 +70,8 @@ public indirect enum Type: Equatable {
 
     private static let quote: Character = "\""
 
-    public struct EncodingError<String: StringProtocol>: Error {
-        public let encoded: String
+    public struct EncodingError: Error {
+        public let encoded: Substring
         public var localizedDescription: String {
             "Invalid type encoding: \(encoded)"
         }
