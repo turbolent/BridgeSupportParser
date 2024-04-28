@@ -363,6 +363,22 @@ class BridgeSupportParserTests: XCTestCase {
         )
     }
 
+    public func testDependsOn() throws {
+        let path = try XCTUnwrap(Bundle.module.path(forResource: "dependson", ofType: "bridgesupport"))
+        let parser = try XCTUnwrap(Parser(contentsOf: URL(fileURLWithPath: path)))
+
+        let result = try parser.parse()
+
+        XCTAssertEqual(
+            result,
+            File(
+                definitions: [
+                    .DependsOn(DependsOn(path: "foo/bar"))
+                ]
+            )
+        )
+    }
+
     public func testTypeSingle() throws {
         let tests: [String: Type] = [
             "c": .Char,

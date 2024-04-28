@@ -3,6 +3,14 @@ import Foundation
 import FoundationXML
 #endif
 
+public struct DependsOn: Equatable {
+    public let path: String
+
+    public init(path: String) {
+        self.path = path
+    }
+}
+
 public struct Class: Equatable {
     public let name: String
     public var methods: [Method]
@@ -95,6 +103,7 @@ public struct Field: Equatable {
 }
 
 public enum Definition: Equatable {
+    case DependsOn(DependsOn)
     case Class(Class)
     case Struct(Struct)
     case Function(Function)
@@ -434,6 +443,9 @@ public class Parser {
             TypeModifier.EncodingError,
             position: Position
         )
+        case MissingPath(
+            position: Position
+        )
     }
 
     // see BridgeSupport.dtd
@@ -489,7 +501,7 @@ public class Parser {
         private enum State {
             case Root
             case Signatures
-            case DependsOn
+            case DependsOn(DependsOn)
             case Struct(Struct)
             case StructField(Struct, Field)
             case Class(Class)
@@ -626,7 +638,7 @@ public class Parser {
                 case .Signatures:
                     switch element {
                         case .DependsOn:
-                            state = .DependsOn
+                            state = .DependsOn(try Self.parseDependsOn(attributes: attributes, position: position))
 
                         case .Struct:
                             state = .Struct(try Self.parseStruct(attributes: attributes, position: position))
@@ -797,8 +809,9 @@ public class Parser {
                     try expectEndElement(.Signatures, element: element)
                     state = .Root
 
-                case .DependsOn:
+                case let .DependsOn(dependsOn):
                     try expectEndElement(.DependsOn, element: element)
+                    result.definitions.append(.DependsOn(dependsOn))
                     state = .Signatures
 
                 case let .Struct(`struct`):
@@ -1041,6 +1054,17 @@ public class Parser {
                     position: position
                 )
             }
+        }
+
+        public static func parseDependsOn(
+            attributes: [String: String],
+            position: Position
+        ) throws -> DependsOn {
+            guard let path = attributes["path"] else {
+                throw Error.MissingPath(position: position)
+            }
+
+            return DependsOn(path: path)
         }
 
         public static func parseStruct(
